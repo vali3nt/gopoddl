@@ -114,8 +114,15 @@ func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
 	fileCounter := 0
 	for k := range d.podcastList {
 		pItem := d.podcastList[k]
-		targetPath := filepath.Join(d.downloadPath, pItem.Filename)
-		if !d.overwrite && fileExists(targetPath) {
+		targetDir := filepath.Join(d.downloadPath, pItem.Dir)
+		targetPath := filepath.Join(targetDir, pItem.Filename)
+		// target dir
+		if !fileExists(targetDir) {
+			if err := os.MkdirAll(targetDir, 0777); err != nil {
+				log.Error("Failed to create dir %s : %s", targetDir, err)
+				continue
+			}
+		} else if !d.overwrite && fileExists(targetPath) {
 			log.Printf("%-15s %s -> %s", log.Color("cyan", "EXISTS"),
 				pItem.Title,
 				targetPath)
@@ -130,8 +137,8 @@ func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
 				log.Color("red", "FAILED"),
 				pItem.Title,
 				targetPath)
+			log.Error(err)
 
-			log.Errorf("ERROR: %s", err)
 			if fileExists(targetPath) {
 				if err := os.Remove(targetPath); err != nil {
 					log.Warnf("Failed to remove file %s after failure", targetPath)
@@ -224,7 +231,7 @@ func parseTime(formatted string) (time.Time, error) {
 
 func getCfgStringNoErr(section string, option string) string {
 	val, _ := cfg.String(section, option)
-	return val
+	return strings.Trim(val, "\"")
 }
 
 /////////////////////////////////////////////////////////////////////

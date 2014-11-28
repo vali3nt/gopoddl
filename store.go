@@ -6,7 +6,6 @@ import (
 	rss "github.com/jteeuwen/go-pkg-rss"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +22,7 @@ type PodcastFilter struct {
 
 type PodcastItem struct {
 	Title      string // will used for log output
+	Dir        string // seperate dir, can be empty
 	Filename   string // file name from url
 	Url        string // url to downaload
 	Size       int64
@@ -272,7 +272,8 @@ func (p *PodcastStore) Filter(podcast Podcast, filter *PodcastFilter) ([]Podcast
 			// add url to list
 			log.Debug("filter:added to download list:", feed.Channels[0].Items[n].Title)
 			itemsToDownload = append(itemsToDownload, PodcastItem{
-				Filename:   filepath.Join(sepPath, p.buildFileName(feed.Channels[0].Items[n].Enclosures[k].Url)),
+				Filename:   p.buildFileName(feed.Channels[0].Items[n].Enclosures[k].Url),
+				Dir:        sepPath,
 				Url:        feed.Channels[0].Items[n].Enclosures[k].Url,
 				Title:      feed.Channels[0].Title,
 				Size:       feed.Channels[0].Items[n].Enclosures[k].Length,
