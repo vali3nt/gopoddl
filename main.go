@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/codegangsta/cli"
+	"github.com/gosuri/uiprogress"
 	"github.com/robfig/config"
 	"io"
 	"net/http"
@@ -20,6 +21,7 @@ var (
 	store    *PodcastStore
 	cfg      *config.Config
 	log      *Logger
+	errChan  = make(chan string, 10000)
 )
 
 /////////////////////////////////////////////////////////////////////
@@ -104,10 +106,40 @@ type downloadStatus struct {
 }
 
 type downloadSet struct {
+	ui           *uiInfo
 	podcastList  []PodcastItem
 	downloadPath string
 	overwrite    bool
 	idx          int
+}
+
+type uiInfo struct {
+	uiBar        *uiprogress.Bar
+	showProgress bool
+}
+
+func (u *uiInfo) BanIncr() {
+	u.uiBar.Incr()
+}
+
+func (u *uiInfo) Printf(format string, msgs ...interface{}) {
+	if u.showProgress {
+		errChan <- fmt.Sprintf(format, msgs...)
+	} else {
+		log.Printf(format, msgs...)
+	}
+}
+
+func (u *uiInfo) Error(format string, msgs ...interface{}) {
+	var msgWithLvl []interface{}
+	msgWithLvl = append(msgWithLvl, log.Color("red", "ERROR"), msgs)
+	u.Printf("%-15s "+format, msgWithLvl...)
+}
+
+func (u *uiInfo) Warn(format string, msgs ...interface{}) {
+	var msgWithLvl []interface{}
+	msgWithLvl = append(msgWithLvl, log.Color("yellow", "WARN"), msgs)
+	u.Printf("%-15s "+format, msgWithLvl...)
 }
 
 func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
@@ -119,29 +151,30 @@ func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
 		// target dir
 		if !fileExists(targetDir) {
 			if err := os.MkdirAll(targetDir, 0777); err != nil {
-				log.Error("Failed to create dir %s : %s", targetDir, err)
+				d.ui.Error("Failed to create dir %s : %s", targetDir, err)
 				continue
 			}
 		} else if !d.overwrite && fileExists(targetPath) {
-			log.Printf("%-15s %s -> %s", log.Color("cyan", "EXISTS"),
+			d.ui.Printf("%-15s %s -> %s", log.Color("cyan", "EXISTS"),
 				pItem.Title,
 				targetPath)
 			continue
 		}
-		log.Printf("Start download %s -> %s", pItem.Title, pItem.Url)
+		if !d.ui.showProgress {
+			log.Printf("Start download %s -> %s", pItem.Title, pItem.Url)
+		} else {
+			d.ui.uiBar.Incr()
+			//d.ui.BanIncr()
+		}
 
 		t0 := time.Now() // download start time
 		if err := downloadFile(d.podcastList[k], targetPath); err != nil {
 
-			log.Printf("%-15s %s -> %s",
-				log.Color("red", "FAILED"),
-				pItem.Title,
-				targetPath)
-			log.Error(err)
+			d.ui.Printf("%s -> %s : %s", pItem.Title, targetPath, err)
 
 			if fileExists(targetPath) {
 				if err := os.Remove(targetPath); err != nil {
-					log.Warnf("Failed to remove file %s after failure", targetPath)
+					d.ui.Warn("Failed to remove file %s after failure", targetPath)
 				}
 			}
 			continue
@@ -150,7 +183,7 @@ func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
 		size := float64(d.podcastList[k].Size) / 1024 / 1024
 		speed := size / time.Now().Sub(t0).Seconds()
 
-		log.Printf("%-15s %s -> %s [%.2fMb, %.2f Mb/s]",
+		d.ui.Printf("%-15s %s -> %s [%.2fMb, %.2f Mb/s]",
 			log.Color("green", "OK"),
 			pItem.Title,
 			targetPath,
@@ -497,6 +530,10 @@ func main() {
 					Name:  "overwrite, o",
 					Usage: "Overwrite files on download",
 				},
+				cli.BoolFlag{
+					Name:  "progress",
+					Usage: "Show progress with bar",
+				},
 			},
 			Action: func(c *cli.Context) {
 				var date time.Time
@@ -512,8 +549,13 @@ func main() {
 
 				pChan := make(chan downloadStatus)
 
+				if c.Bool("progress") {
+					uiprogress.Start()
+				}
+
 				podcastCount := 0
 				for n := range store.Podcasts {
+					var uiBar *uiprogress.Bar
 					p := store.Podcasts[n]
 
 					// exclude disabled
@@ -533,9 +575,10 @@ func main() {
 						DateFormat:   getCfgStringNoErr(p.Name, "date-format"),
 						SeperatePath: getCfgStringNoErr(p.Name, "separate-dir"),
 					}
-					// Get list
+					// get list
 					downloadPath := getCfgStringNoErr(p.Name, "download-path")
 					podcastList, err := store.Filter(p, &f)
+
 					if err != nil {
 						log.Errorf("Error %s: %v", p.Name, err)
 						continue
@@ -546,8 +589,22 @@ func main() {
 							store.Podcasts[n].Name, len(podcastList))
 						continue
 					}
-					log.Printf("%s : %s, %d files", log.Color("green", "START"),
-						store.Podcasts[n].Name, len(podcastList))
+					if !c.Bool("progress") {
+						log.Printf("%s : %s, %d files", log.Color("green", "START"),
+							store.Podcasts[n].Name, len(podcastList))
+					} else {
+						// show progress per podcast
+						uiBar = uiprogress.AddBar(len(podcastList)).AppendCompleted()
+						uiBar.PrependFunc(func(b *uiprogress.Bar) string {
+							displayName := ""
+							if len(p.Name) >= 20 {
+								displayName = p.Name[:17] + "..."
+							} else {
+								displayName = p.Name
+							}
+							return fmt.Sprintf("%-20s (%d/%d)", displayName, b.Current(), len(podcastList))
+						})
+					}
 					if !fileExists(downloadPath) {
 						if err := os.MkdirAll(downloadPath, 0777); err != nil {
 							log.Error(err)
@@ -556,11 +613,13 @@ func main() {
 					}
 					podcastCount++ // podcast counter
 					d := downloadSet{
+						ui:           &uiInfo{uiBar: uiBar, showProgress: c.Bool("progress")},
 						podcastList:  podcastList,
 						downloadPath: downloadPath,
 						overwrite:    c.Bool("overwrite"),
 						idx:          n,
 					}
+
 					go downloadPodcastList(d, pChan)
 				}
 				donePodcasts := 0
@@ -570,9 +629,11 @@ func main() {
 					for {
 						select {
 						case status := <-pChan:
-							log.Printf("%s : %s",
-								log.Color("green", "DONE"),
-								store.Podcasts[status.podcastIdx].Name)
+							if !c.Bool("progress") {
+								log.Printf("%s : %s",
+									log.Color("green", "DONE"),
+									store.Podcasts[status.podcastIdx].Name)
+							}
 							// Update statistic
 							store.Podcasts[status.podcastIdx].LastSynced = time.Now()
 							store.Podcasts[status.podcastIdx].DownloadedFiles += status.fileCounter
@@ -585,7 +646,16 @@ func main() {
 					}
 				}
 				close(pChan)
+
+				if c.Bool("pregress") {
+					for msg := range errChan {
+						log.Printf(msg)
+					}
+					uiprogress.Stop()
+				}
+				close(errChan)
 				log.Printf("Finished at %s", time.Now())
+
 			},
 		},
 	}
