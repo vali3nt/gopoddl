@@ -1,0 +1,7 @@
+package: github.com/vali3nt/gopoddl
+import:
+- package: github.com/codegangsta/cli
+- package: github.com/gosuri/uiprogress
+- package: github.com/jteeuwen/go-pkg-rss
+- package: github.com/robfig/config
+- package: github.com/shiena/ansicolor
