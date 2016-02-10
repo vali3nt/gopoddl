@@ -122,7 +122,8 @@ func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
 				log.Error("Failed to create dir %s : %s", targetDir, err)
 				continue
 			}
-		} else if !d.overwrite && fileExists(targetPath) {
+		}
+		if !d.overwrite && fileExists(targetPath) {
 			log.Printf("%-15s %s -> %s", log.Color("cyan", "EXISTS"),
 				pItem.Title,
 				targetPath)

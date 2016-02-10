@@ -97,7 +97,7 @@ func (e *Expression) AddKeyword(k string) error {
 			return errors.New("malformed expression: " + k)
 		}
 	default:
-		return errors.New("malformed expression: uknown keyword")
+		return errors.New("malformed expression: uknown keyword: " + k)
 	}
 	return nil
 }

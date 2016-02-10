@@ -58,3 +58,7 @@ can be set configuration per podcast
 ## Author
 
 [vali3nt](https://github.com/vali3nt)
+
+## TODO
+* add https://github.com/sethgrid/multibar for linux
+* parse expression once
