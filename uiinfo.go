@@ -1,9 +1,11 @@
 package main
 
+/*
 import (
 	"fmt"
 	"github.com/gosuri/uiprogress"
 )
+
 
 type uiInfo struct {
 	uiBar        *uiprogress.Bar
@@ -33,3 +35,4 @@ func (u *uiInfo) Warn(format string, msgs ...interface{}) {
 	msgWithLvl = append(msgWithLvl, log.Color("yellow", "WARN"), msgs)
 	u.Printf("%-15s "+format, msgWithLvl...)
 }
+*/

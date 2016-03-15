@@ -3,12 +3,13 @@ package main
 import (
 	"bufio"
 	"encoding/json"
-	rss "github.com/jteeuwen/go-pkg-rss"
 	"net/url"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	rss "github.com/jteeuwen/go-pkg-rss"
 )
 
 type PodcastFilter struct {
@@ -34,6 +35,13 @@ type Podcast struct {
 	Url             string    // Url to rss xml file
 	LastSynced      time.Time // Last synced time
 	DownloadedFiles int       // TODO: add statistics
+}
+
+// reset statistic
+func (p *Podcast) Reset() {
+	var emptyDate time.Time
+	p.LastSynced = emptyDate
+	p.DownloadedFiles = 0
 }
 
 type PodcastStore struct {
@@ -123,6 +131,14 @@ func (c *PodcastStore) FindByNameOrNum(nameOrId string) int {
 	}
 
 	return -1
+}
+
+// reset time and count on all podcasts
+func (c *PodcastStore) Reset() error {
+	for n := range c.Podcasts {
+		c.Podcasts[n].Reset()
+	}
+	return c.Save()
 }
 
 // Add new podacst to store, validate on name uniq

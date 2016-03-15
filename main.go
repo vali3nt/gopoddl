@@ -13,8 +13,17 @@ var (
 	store    *PodcastStore
 	cfg      *config.Config
 	log      Logger
-	errChan  = make(chan string, 10000)
 )
+
+func checkConfigFiles(cfgPath, storePath string) bool {
+	if !fileExists(cfgPath) || !fileExists(storePath) {
+		log.Debug("Cfg path:", cfgPath)
+		log.Debug("Store path:", storePath)
+		log.Warn("Config file was not found, please run 'init' to create it")
+		return false
+	}
+	return true
+}
 
 // entry point
 func main() {
@@ -25,53 +34,36 @@ func main() {
 	app.Usage = "Podcast downloader"
 	app.Before = func(c *cli.Context) (err error) {
 
-		// if c.IsSet("logfile") {
-		// 	log, err = MakeFileLogger(c.Bool("debug"), c.String("logfile"))
-		// 	if err != nil {
-		// 		fmt.Printf("Failed to init logger. Error: %s\n", err)
-		// 	}
-		// } else {
-		// 	useColors := true
-		// 	if c.Bool("nocolor") {
-		// 		useColors = false
-		// 	}
-		// 	log = MakeLogger(c.Bool("debug"), useColors)
-		// }
-
 		log, err = MakeLogger(c.String("logfile"), c.Bool("debug"), c.Bool("nocolor"))
 		if err != nil {
 			fmt.Printf("Failed to init logger. Error: %s\n", err)
 			return nil
 		}
 
+		// skip rest of function for init
 		if c.Args().First() == "init" {
 			return nil
 		}
 
-		cfg_file := expandPath(c.GlobalString("config"))
-		store_file := expandPath(c.GlobalString("store"))
+		cfgFile := expandPath(c.GlobalString("config"))
+		storeFile := expandPath(c.GlobalString("store"))
 
-		if !fileExists(cfg_file) || !fileExists(store_file) {
-			log.Debug("Cfg path:", cfg_file)
-			log.Debug("Store path:", store_file)
-			log.Warn("Config file was not found, please run 'init' to create it")
+		// was 'init' run
+		if !checkConfigFiles(cfgFile, storeFile) {
 			os.Exit(0)
-		} else {
-			// Do not load file while in 'init' action
-			// Load files
-			log.Debugf("Conf file %s loaded", cfg_file)
-			cfg, err = LoadConf(cfg_file)
-			if err != nil {
-				log.Error(err)
-			}
-			// Podcast store
-			store, err = LoadStore(store_file)
-			if err != nil {
-				log.Error(err)
-			}
-			log.Debugf("Store file %s loaded", store_file)
-
 		}
+
+		// Load files
+		if cfg, err = LoadConf(cfgFile); err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
+		// Podcast store
+		if store, err = LoadStore(storeFile); err != nil {
+			log.Error(err)
+			os.Exit(1)
+		}
+
 		return nil
 	}
 
