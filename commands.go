@@ -152,9 +152,7 @@ func cmdCheck() cli.Command {
 	cmd.ShortName = "c"
 	cmd.Usage = "check podcasts for availability"
 	cmd.Action = func(c *cli.Context) {
-		log.Printf("Started at %s", time.Now())
 		checkPodcasts()
-		log.Printf("Finished at %s", time.Now())
 	}
 
 	return cmd
@@ -199,9 +197,12 @@ func cmdSync() cli.Command {
 
 		podcastCount := c.Int("count")
 		isOverwrite := c.Bool("overwrite")
+
+		log.Printf("Started at %s", time.Now())
 		if err = syncPodcasts(date, podcastCount, isOverwrite); err != nil {
 			log.Error(err)
 		}
+		log.Printf("Finished at %s", time.Now())
 	}
 
 	return cmd

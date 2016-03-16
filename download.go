@@ -1,10 +1,9 @@
 package main
 
+// github.com/cheggaaa/pb
+
 import (
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,86 +11,8 @@ import (
 	"time"
 
 	"github.com/cavaliercoder/grab"
+	"github.com/gosuri/uilive"
 )
-
-type downloadStatus struct {
-	podcastIdx  int
-	fileCounter int
-}
-
-type downloadSet struct {
-	podcastList  []PodcastItem
-	downloadPath string
-	overwrite    bool
-	idx          int
-}
-
-func downloadPodcastList(d downloadSet, pChan chan downloadStatus) {
-	fileCounter := 0
-	for k := range d.podcastList {
-		pItem := d.podcastList[k]
-		targetDir := filepath.Join(d.downloadPath, pItem.Dir)
-		targetPath := filepath.Join(targetDir, pItem.Filename)
-		// target dir
-		if !fileExists(targetDir) {
-			if err := os.MkdirAll(targetDir, 0777); err != nil {
-				log.Error("Failed to create dir %s : %s", targetDir, err)
-				continue
-			}
-		} else if !d.overwrite && fileExists(targetPath) {
-			log.Printf("%-15s %s -> %s", log.Color("cyan", "EXISTS"), pItem.Title, targetPath)
-			continue
-		}
-
-		log.Printf("Start download %s -> %s", pItem.Title, pItem.Url)
-
-		t0 := time.Now() // download start time
-		if err := downloadFile(d.podcastList[k], targetPath); err != nil {
-
-			log.Printf("%s -> %s : %s", pItem.Title, targetPath, err)
-
-			if fileExists(targetPath) {
-				if err := os.Remove(targetPath); err != nil {
-					log.Warn("Failed to remove file %s after failure", targetPath)
-				}
-			}
-			continue
-		}
-
-		size := float64(d.podcastList[k].Size) / 1024 / 1024
-		speed := size / time.Now().Sub(t0).Seconds()
-
-		log.Printf("%-15s %s -> %s [%.2fMb, %.2f Mb/s]", log.Color("green", "OK"), pItem.Title, targetPath, size, speed)
-		fileCounter++
-	}
-
-	// send finished podcasts id
-	pChan <- downloadStatus{d.idx, fileCounter}
-}
-
-func downloadFile(pItem PodcastItem, targetPath string) error {
-	out, err := os.Create(targetPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	resp, err := http.Get(pItem.Url)
-	if err != nil {
-		return err
-	}
-	if resp.StatusCode != 200 {
-		return errors.New(fmt.Sprintf("Response code : %d", resp.StatusCode))
-	}
-	defer resp.Body.Close()
-	size, err := io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-	if size != pItem.Size {
-		return errors.New(fmt.Sprintf("%s size is differ %d bytes <> %d bytes", pItem.Url, pItem.Size, size))
-	}
-	return nil
-}
 
 func checkPodcasts() {
 	var date time.Time
@@ -139,10 +60,7 @@ func checkPodcasts() {
 }
 
 func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
-	pChan := make(chan downloadStatus)
-	errChan := make(chan string, 10000)
-
-	podcastCount := 0
+	allReqs := [][]*grab.Request{}
 	for n := range store.Podcasts {
 		p := store.Podcasts[n]
 
@@ -155,7 +73,7 @@ func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
 
 		// build filter
 		mtype := strings.Split(getCfgStringNoErr(p.Name, "mtype"), ",")
-		f := PodcastFilter{
+		filter := PodcastFilter{
 			StartDate:    startDate,
 			Count:        count,
 			MediaType:    mtype,
@@ -165,53 +83,174 @@ func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
 		}
 		// get list
 		downloadPath := getCfgStringNoErr(p.Name, "download-path")
-		podcastList, err := store.Filter(p, &f)
+		podcastList, err := store.Filter(p, &filter)
 
 		if err != nil {
 			log.Errorf("Error %s: %v", p.Name, err)
 			continue
 		}
 
+		// check for emptiness
 		if len(podcastList) == 0 {
 			log.Printf("%s : %s, %d files", log.Color("cyan", "EMPTY"),
 				store.Podcasts[n].Name, len(podcastList))
 			continue
 		}
+
+		// create dir if needed
 		if !fileExists(downloadPath) {
 			if err := os.MkdirAll(downloadPath, 0777); err != nil {
 				log.Error(err)
 				continue
 			}
 		}
-		podcastCount++ // podcast counter
-		d := downloadSet{
-			podcastList:  podcastList,
-			downloadPath: downloadPath,
-			overwrite:    isOverwrite,
-			idx:          n,
+
+		// create download requests
+		reqs := []*grab.Request{}
+		for _, entry := range podcastList {
+			downloadFilePath := filepath.Join(downloadPath, entry.Filename)
+			if !isOverwrite && fileExists(downloadFilePath) {
+				continue
+			}
+			req, _ := grab.NewRequest(entry.Url)
+			req.Filename = downloadFilePath
+			req.Size = uint64(entry.Size)
+			req.RemoveOnError = true
+			reqs = append(reqs, req)
 		}
 
-		go downloadPodcastList(d, pChan)
-	}
-	donePodcasts := 0
-	if podcastCount != 0 {
+		allReqs = append(allReqs, reqs)
 
-	M:
-		for {
-			select {
-			case status := <-pChan:
-				log.Printf("%s : %s", log.Color("green", "DONE"), store.Podcasts[status.podcastIdx].Name)
-				store.Podcasts[status.podcastIdx].LastSynced = time.Now()
-				store.Podcasts[status.podcastIdx].DownloadedFiles += status.fileCounter
-				store.Save()
-				donePodcasts++
-				if donePodcasts == podcastCount {
-					break M
+	}
+
+	startDownload(allReqs)
+
+	for n := range store.Podcasts {
+		store.Podcasts[n].LastSynced = time.Now()
+	}
+	store.Save()
+
+	return nil
+}
+
+func startDownload(downloadReqs [][]*grab.Request) {
+	requestCount := len(downloadReqs)
+	statusQueue := make(chan *downloadStatus, 100)
+	doneQueue := make(chan bool, requestCount)
+	totalFiles := 0
+
+	client := grab.NewClient()
+
+	go func() {
+		// wait while all requests will be in queue
+		for i := 0; i < requestCount; i++ {
+			<-doneQueue
+		}
+		close(statusQueue)
+		close(doneQueue)
+	}()
+
+	for _, podcastReq := range downloadReqs {
+		totalFiles += len(podcastReq)
+
+		go func(requests []*grab.Request) {
+			curPosition := 0
+			podcastTotal := len(requests)
+			for _, req := range requests {
+
+				// increas position, used for printing
+				curPosition++
+
+				// start downloading
+				resp := <-client.DoAsync(req)
+
+				// send results to monitoring channel
+				statusQueue <- &downloadStatus{
+					Total:    podcastTotal,
+					Current:  curPosition,
+					Response: resp,
+				}
+
+			}
+			doneQueue <- true
+		}(podcastReq)
+	}
+	checkDownloadProgress(statusQueue, totalFiles)
+	log.Infof("%d files successfully downloaded.\n", totalFiles)
+}
+
+type downloadStatus struct {
+	Total    int // total requests count
+	Current  int // current position
+	Response *grab.Response
+}
+
+func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) {
+	timer := time.NewTicker(200 * time.Millisecond)
+	ui := uilive.New()
+
+	completed := 0
+	responses := make([]*downloadStatus, 0)
+
+	ui.Start()
+	for completed < reqCount {
+		select {
+		case resp := <-respch:
+			if resp != nil {
+				responses = append(responses, resp)
+			}
+
+		case <-timer.C:
+			// print completed requests
+			for i, resp := range responses {
+				if resp != nil && resp.Response.IsComplete() {
+
+					if resp.Response.Error != nil {
+						showProgressError(ui, resp)
+					} else {
+						showProgressDone(ui, resp)
+					}
+
+					responses[i] = nil
+					completed++
+				}
+			}
+
+			// print in progress requests
+			for _, resp := range responses {
+				if resp != nil {
+					showProgressProc(ui, resp)
 				}
 			}
 		}
 	}
-	close(pChan)
-	close(errChan)
-	return nil
+
+	timer.Stop()
+	ui.Stop()
+}
+
+func showProgressError(ui *uilive.Writer, status *downloadStatus) {
+	fmt.Fprintf(ui.Bypass(), "Error downloading %s: %v\n",
+		status.Response.Request.URL(),
+		status.Response.Error)
+}
+
+func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
+	fmt.Fprintf(ui.Bypass(),
+		"Finished %s[%d/%d] %d / %d bytes (%d%%)\n",
+		status.Response.Filename,
+		status.Current, status.Total,
+		status.Response.BytesTransferred(),
+		status.Response.Size,
+		int(100*status.Response.Progress()))
+}
+
+func showProgressProc(ui *uilive.Writer, status *downloadStatus) {
+	fmt.Fprintf(ui, "Downloading %s[%d/%d] %d / %d bytes (%d%%)\n",
+		status.Response.Filename,
+		status.Current, status.Total,
+		status.Response.BytesTransferred(),
+		status.Response.Size,
+		int(100*status.Response.Progress()))
+
 }

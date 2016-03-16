@@ -15,6 +15,8 @@ import (
 type Logger interface {
 	Print(any ...interface{})
 	Printf(format string, any ...interface{})
+	Info(any ...interface{})
+	Infof(format string, any ...interface{})
 	Debug(any ...interface{})
 	Debugf(format string, any ...interface{})
 	Warn(any ...interface{})
@@ -100,6 +102,13 @@ func (d *loggerInstance) Printf(format string, any ...interface{}) {
 		format += "\n"
 	}
 	fmt.Fprintf(d.writer, format, any...)
+}
+func (d *loggerInstance) Info(any ...interface{}) {
+	d.Print(any...)
+}
+
+func (d *loggerInstance) Infof(format string, any ...interface{}) {
+	d.Printf(format, any...)
 }
 
 func (d *loggerInstance) Debug(any ...interface{}) {
