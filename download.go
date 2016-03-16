@@ -23,6 +23,7 @@ func checkPodcasts() {
 
 		// exclude disabled
 		if disable, err := cfg.Bool(p.Name, "disable"); err != nil {
+			// TODO: replace fatal error to disable=false
 			log.Fatalf("Failed to get 'disable' option: %s", err)
 		} else if disable {
 			continue

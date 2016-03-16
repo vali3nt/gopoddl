@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"os"
 	"strconv"
@@ -10,6 +11,11 @@ import (
 	"time"
 
 	rss "github.com/jteeuwen/go-pkg-rss"
+)
+
+var (
+	ErrAlreadyExistInStore = errors.New("Podcast exists in store already")
+	ErrWasNotFoundInStore  = errors.New("Podcast does not exist in store")
 )
 
 type PodcastFilter struct {
@@ -134,7 +140,7 @@ func (c *PodcastStore) FindByNameOrNum(nameOrId string) int {
 }
 
 // reset time and count on all podcasts
-func (c *PodcastStore) Reset() error {
+func (c *PodcastStore) ResetAll() error {
 	for n := range c.Podcasts {
 		c.Podcasts[n].Reset()
 	}
@@ -153,35 +159,27 @@ func (c *PodcastStore) Add(Url, Name string) error {
 	}
 
 	if n := c.FindByNameOrNum(Name); n != -1 {
-		log.Warnf("yellow", "<%s> already exists\n", Name)
-		return nil
+		return ErrAlreadyExistInStore
 	}
 
 	c.Podcasts = append(c.Podcasts, Podcast{
 		Name: Name,
 		Url:  Url,
 	})
-	log.Printf("* [%s] added\n", Name)
+
 	return c.Save()
 }
 
 // Remove podcast from store
 func (c *PodcastStore) Remove(nameOrId string) error {
-	wasDeleted := false
 	// search for name
 	if n := c.FindByNameOrNum(nameOrId); n != -1 {
-		name := c.Podcasts[n].Name
 		// remove
 		c.Podcasts = append(c.Podcasts[:n], c.Podcasts[n+1:]...)
-		log.Printf("* [%s] removed", name)
-		wasDeleted = true
-	}
-	if !wasDeleted {
-		log.Warnf("Name or ID <%s> does not exist or invalid. do nothing", nameOrId)
 	} else {
-		return c.Save()
+		return ErrWasNotFoundInStore
 	}
-	return nil
+	return c.Save()
 }
 
 // clean up file name

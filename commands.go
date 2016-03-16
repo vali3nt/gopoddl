@@ -107,8 +107,14 @@ func cmdAdd() cli.Command {
 		podcastName := c.Args().Get(1)
 
 		if err := store.Add(url, podcastName); err != nil {
-			log.Fatal(err)
+			if err == ErrAlreadyExistInStore {
+				log.Warnf("Podcast <%s> exists in store already", podcastName)
+			} else {
+				log.Fatal(err)
+			}
+			return
 		}
+		log.Printf("* Podcast [%s] added", podcastName)
 	}
 
 	return cmd
@@ -127,8 +133,14 @@ func cmdRemove() cli.Command {
 
 		nameOrId := c.Args().First()
 		if err := store.Remove(nameOrId); err != nil {
-			log.Fatal(err)
+			if err == ErrWasNotFoundInStore {
+				log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrId)
+			} else {
+				log.Fatal(err)
+			}
+			return
 		}
+		log.Printf("* [%s] removed", nameOrId)
 	}
 
 	return cmd
@@ -140,7 +152,7 @@ func cmdReset() cli.Command {
 	cmd.Name = "reset"
 	cmd.Usage = "reset time and count for podcasts"
 	cmd.Action = func(c *cli.Context) {
-		if err := store.Save(); err != nil {
+		if err := store.ResetAll(); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -201,11 +213,11 @@ func cmdSync() cli.Command {
 		podcastCount := c.Int("count")
 		isOverwrite := c.Bool("overwrite")
 
-		log.Printf("Started at %s", time.Now())
+		log.Infof("Started at %s", time.Now())
 		if err = syncPodcasts(date, podcastCount, isOverwrite); err != nil {
 			log.Fatal(err)
 		}
-		log.Printf("Finished at %s", time.Now())
+		log.Infof("Finished at %s", time.Now())
 	}
 
 	return cmd
