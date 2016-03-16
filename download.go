@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cavaliercoder/grab"
+	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 )
 
@@ -40,11 +41,11 @@ func checkPodcasts() {
 
 		// Get list
 		podcastList, err := store.Filter(p, &f)
-		status := log.Color("green", "OK")
+		status := color.GreenString("OK")
 		if err != nil {
-			status = log.Color("red", "FAIL")
+			status = color.RedString("FAIL")
 		}
-		num := log.Color("magenta", "["+strconv.Itoa(n+1)+"] ")
+		num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
 
 		log.Printf("%s %s", num, p.Name)
 		log.Printf("\t* Url             : %s %s", p.Url, status)
@@ -86,13 +87,13 @@ func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
 		podcastList, err := store.Filter(p, &filter)
 
 		if err != nil {
-			log.Errorf("Error %s: %v", p.Name, err)
+			log.Fatalf("Error %s: %v", p.Name, err)
 			continue
 		}
 
 		// check for emptiness
 		if len(podcastList) == 0 {
-			log.Printf("%s : %s, %d files", log.Color("cyan", "EMPTY"),
+			log.Printf("%s : %s, %d files", color.CyanString("cyan", "EMPTY"),
 				store.Podcasts[n].Name, len(podcastList))
 			continue
 		}
@@ -100,7 +101,7 @@ func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
 		// create dir if needed
 		if !fileExists(downloadPath) {
 			if err := os.MkdirAll(downloadPath, 0777); err != nil {
-				log.Error(err)
+				log.Fatal(err)
 				continue
 			}
 		}
@@ -135,9 +136,8 @@ func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
 
 func startDownload(downloadReqs [][]*grab.Request) {
 	requestCount := len(downloadReqs)
-	statusQueue := make(chan *downloadStatus, 100)
+	statusQueue := make(chan *downloadStatus, requestCount)
 	doneQueue := make(chan bool, requestCount)
-	totalFiles := 0
 
 	client := grab.NewClient()
 
@@ -146,10 +146,12 @@ func startDownload(downloadReqs [][]*grab.Request) {
 		for i := 0; i < requestCount; i++ {
 			<-doneQueue
 		}
+		// clise channels
 		close(statusQueue)
 		close(doneQueue)
 	}()
 
+	totalFiles := 0
 	for _, podcastReq := range downloadReqs {
 		totalFiles += len(podcastReq)
 

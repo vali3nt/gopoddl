@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/codegangsta/cli"
+	"github.com/fatih/color"
 )
 
 // if argment len is less then count
@@ -30,13 +31,14 @@ func cmdInit() cli.Command {
 		storeFile := expandPath(c.GlobalString("store"))
 
 		if !fileExists(cfgFile) {
-			log.Debugf("Creating : %s", cfgFile)
+			log.Debugf("Creating : %s\n", cfgFile)
 			if err := InitConf(cfgFile); err != nil { // create config file
-				log.Error(err)
+				log.Fatal(err)
 			}
-			log.Print(log.Color("green", "Default config created."))
-			log.Printf("* Do not forget to change download_path under %s", cfgFile)
-			log.Print("* Now it set to HOME directory")
+
+			log.Print(color.GreenString("Default config created."))
+			log.Printf("* Do not forget to change download_path in %s", cfgFile)
+			log.Print("* It's set to HOME directory")
 		} else {
 			log.Printf("* Config file %s exists", cfgFile)
 		}
@@ -44,7 +46,7 @@ func cmdInit() cli.Command {
 		if !fileExists(storeFile) {
 			log.Debugf("Creating : %s", storeFile)
 			if err := InitStore(storeFile); err != nil { // create store file
-				log.Error(err)
+				log.Fatal(err)
 			}
 		} else {
 			log.Printf("* Store file %s exists", storeFile)
@@ -70,16 +72,17 @@ func cmdList() cli.Command {
 			if disable, err := cfg.Bool(store.Podcasts[n].Name, "disable"); err != nil {
 				log.Fatalf("Failed to get 'disable' option: %s", err)
 			} else if disable {
-				isDisabled = log.Color("yellow", "[disabled]")
+				isDisabled = color.YellowString("[disabled]")
 			}
 
 			if store.Podcasts[n].LastSynced.IsZero() {
-				lastUpdated = log.Color("cyan", "Never")
+				lastUpdated = color.CyanString("Never")
 			} else {
-				lastUpdated = fmt.Sprintf("%s [%d days ago]", store.Podcasts[n].LastSynced.Format("2006-01-02 15:4"),
+				lastUpdated = fmt.Sprintf("%s [%d days ago]",
+					store.Podcasts[n].LastSynced.Format("2006-01-02 15:4"),
 					int(time.Now().Sub(store.Podcasts[n].LastSynced)/(24*time.Hour)))
 			}
-			num := log.Color("magenta", "["+strconv.Itoa(n+1)+"] ")
+			num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
 			log.Printf("%s %s %s", num, store.Podcasts[n].Name, isDisabled)
 			log.Printf("\t* Url             : %s", store.Podcasts[n].Url)
 			log.Printf("\t* Last synced     : %s", lastUpdated)
@@ -104,7 +107,7 @@ func cmdAdd() cli.Command {
 		podcastName := c.Args().Get(1)
 
 		if err := store.Add(url, podcastName); err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 	}
 
@@ -124,7 +127,7 @@ func cmdRemove() cli.Command {
 
 		nameOrId := c.Args().First()
 		if err := store.Remove(nameOrId); err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 	}
 
@@ -138,7 +141,7 @@ func cmdReset() cli.Command {
 	cmd.Usage = "reset time and count for podcasts"
 	cmd.Action = func(c *cli.Context) {
 		if err := store.Save(); err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 	}
 
@@ -190,7 +193,7 @@ func cmdSync() cli.Command {
 
 		if c.IsSet("date") {
 			if date, err = parseTime(c.String("date")); err != nil {
-				log.Error(err)
+				log.Fatal(err)
 				return
 			}
 		}
@@ -200,7 +203,7 @@ func cmdSync() cli.Command {
 
 		log.Printf("Started at %s", time.Now())
 		if err = syncPodcasts(date, podcastCount, isOverwrite); err != nil {
-			log.Error(err)
+			log.Fatal(err)
 		}
 		log.Printf("Finished at %s", time.Now())
 	}

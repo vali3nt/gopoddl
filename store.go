@@ -153,7 +153,7 @@ func (c *PodcastStore) Add(Url, Name string) error {
 	}
 
 	if n := c.FindByNameOrNum(Name); n != -1 {
-		log.Warnf(log.Color("yellow", "<%s> already exists"), Name)
+		log.Warnf("yellow", "<%s> already exists\n", Name)
 		return nil
 	}
 
@@ -161,7 +161,7 @@ func (c *PodcastStore) Add(Url, Name string) error {
 		Name: Name,
 		Url:  Url,
 	})
-	log.Printf("* [%s] added", Name)
+	log.Printf("* [%s] added\n", Name)
 	return c.Save()
 }
 

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/codegangsta/cli"
+	"github.com/iamthemuffinman/logsip"
 	"github.com/robfig/config"
 )
 
@@ -12,7 +12,7 @@ var (
 	progName = "gopoddl"
 	store    *PodcastStore
 	cfg      *config.Config
-	log      Logger
+	log      *logsip.Logger
 )
 
 func checkConfigFiles(cfgPath, storePath string) bool {
@@ -34,11 +34,8 @@ func main() {
 	app.Usage = "Podcast downloader"
 	app.Before = func(c *cli.Context) (err error) {
 
-		log, err = MakeLogger(c.String("logfile"), c.Bool("debug"), c.Bool("nocolor"))
-		if err != nil {
-			fmt.Printf("Failed to init logger. Error: %s\n", err)
-			return nil
-		}
+		log = logsip.Default()
+		log.DebugMode = c.Bool("debug")
 
 		// skip rest of function for init
 		if c.Args().First() == "init" {
@@ -55,12 +52,12 @@ func main() {
 
 		// Load files
 		if cfg, err = LoadConf(cfgFile); err != nil {
-			log.Error(err)
+			log.Fatal(err)
 			os.Exit(1)
 		}
 		// Podcast store
 		if store, err = LoadStore(storeFile); err != nil {
-			log.Error(err)
+			log.Fatal(err)
 			os.Exit(1)
 		}
 
@@ -88,10 +85,6 @@ func main() {
 		cli.BoolFlag{
 			Name:  "nocolor",
 			Usage: "disable colors",
-		},
-		cli.StringFlag{
-			Name:  "logfile",
-			Usage: "send output to log file",
 		},
 	}
 

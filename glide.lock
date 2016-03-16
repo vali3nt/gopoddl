@@ -1,18 +1,44 @@
-hash: aeca38dc8fe10108eaa5380b8449847bfa4885d31ac7fe95eb3e78e51c6b6836
-updated: 2016-03-15T23:05:30.571141141+03:00
+hash: 3edc5208e4e5c95b7acf628b89b4b1a5a3384c285b33e4420a907e09be50fc70
+updated: 2016-03-16T16:52:02.2949113+03:00
 imports:
 - name: github.com/cavaliercoder/grab
   version: 7381b99b8aae6f1c520bebd8274117d936c61fb8
+  subpackages:
+  - github.com\cavaliercoder\grab
 - name: github.com/codegangsta/cli
   version: aca5b047ed14d17224157c3434ea93bf6cdaadee
+  subpackages:
+  - github.com\codegangsta\cli
+- name: github.com/fatih/color
+  version: 4f7bcef27eec7925456d0c30c5e7b0408b3339be
 - name: github.com/gosuri/uilive
   version: efb88ccd059957c48f24f9d351d33a0eb00ede41
+  subpackages:
+  - github.com\gosuri\uilive
+- name: github.com/iamthemuffinman/logsip
+  version: 413712839ca23745aa3e2c27e210f906fefa38c8
 - name: github.com/jteeuwen/go-pkg-rss
   version: 72391e6fd7384785fa3c46a405214a616d6c4a1d
+  subpackages:
+  - github.com\jteeuwen\go-pkg-rss
 - name: github.com/jteeuwen/go-pkg-xmlx
   version: 76f54ee73233b171ca9ee82ef837a1fc4d3809c0
+  subpackages:
+  - github.com\jteeuwen\go-pkg-xmlx
+- name: github.com/mattn/go-isatty
+  version: 56b76bdf51f7708750eac80fa38b952bb9f32639
+  subpackages:
+  - github.com\mattn\go-isatty
 - name: github.com/robfig/config
   version: 0f78529c8c7e3e9a25f15876532ecbc07c7d99e6
+  subpackages:
+  - github.com\robfig\config
 - name: github.com/shiena/ansicolor
   version: a422bbe96644373c5753384a59d678f7d261ff10
+  subpackages:
+  - github.com\shiena\ansicolor
+- name: golang.org/x/sys
+  version: 9d4e42a20653790449273b3c85e67d6d8bae6e2e
+  subpackages:
+  - golang.org\x\sys\unix
 devImports: []
