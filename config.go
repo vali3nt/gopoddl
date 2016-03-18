@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-ini/ini"
@@ -169,6 +170,21 @@ func (c *Config) GetPodcastByName(name string) (*Podcast, error) {
 	}
 
 	return podcast, nil
+}
+
+func (c *Config) GetPodcastByNameOrId(nameOrId string) (*Podcast, error) {
+	p, err := c.GetPodcastByName(nameOrId)
+	if err != nil {
+		var n int
+		n, err = strconv.Atoi(nameOrId)
+		if err == nil {
+			p, err = c.GetPodcastByIndex(n - 1)
+		}
+	}
+	if err == nil {
+		return p, nil
+	}
+	return nil, err
 }
 
 func (c *Config) GetPodcastByIndex(index int) (*Podcast, error) {

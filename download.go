@@ -32,50 +32,23 @@ func getRssName(url string) (string, error) {
 	return feed.Channels[0].Title, nil
 }
 
-func checkPodcasts() {
-	var date time.Time
-	// parse input date
-	for n, podcast := range cfg.GetAllPodcasts() {
-
-		filter := MakeFilter(podcast)
-		filter.Count = -1
-		filter.StartDate = date
-
-		status := color.GreenString("OK")
-		num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
-		var podcastList []*DownloadItem
-
-		// Download rss
-
-		feed, err := getRss(podcast)
-		if err == nil {
-			if len(feed.Channels) == 0 {
-				log.Warnf(fmt.Sprintf("No channels in %s", podcast.Name))
-				continue
-			}
-			podcastList, err = filter.FilterItems(feed.Channels[0])
-		}
-		// colorize error message
-		if err != nil {
-			status = color.RedString("FAIL")
-		}
-
-		log.Printf("%s %s", num, podcast.Name)
-		log.Printf("\t* Url             : %s %s", podcast.Url, status)
-		if err != nil {
-			log.Debugf("Error: %s", err)
-		} else {
-			log.Printf("\t* Awaiting files  : %d", len(podcastList))
-			for k := range podcastList {
-				log.Printf("\t\t* [%d] : %s", k, podcastList[k].ItemTitle)
-			}
-		}
-	}
-}
-
-func syncPodcasts(startDate time.Time, count int) error {
+func syncPodcasts(startDate time.Time, nameOrId string, count int, chekMode bool) error {
 	allReqs := [][]*grab.Request{}
-	for _, podcast := range cfg.GetAllPodcasts() {
+	podcasts := []*Podcast{}
+
+	if nameOrId == "" {
+		podcasts = cfg.GetAllPodcasts()
+	} else {
+		p, err := cfg.GetPodcastByNameOrId(nameOrId)
+		if err != nil {
+			return err
+		}
+		podcasts = append(podcasts, p)
+	}
+
+	for n, podcast := range podcasts {
+
+		var podcastList []*DownloadItem
 
 		filter := MakeFilter(podcast)
 		filter.Count = count
@@ -84,7 +57,7 @@ func syncPodcasts(startDate time.Time, count int) error {
 		// download rss
 		feed, err := getRss(podcast)
 		if err != nil {
-			log.Fatalf("Error %s: %v", podcast.Name, err)
+			printPodcastInfo(podcast, podcastList, n+1, err)
 			continue
 		}
 
@@ -94,10 +67,14 @@ func syncPodcasts(startDate time.Time, count int) error {
 		}
 
 		// filter
-		var podcastList []*DownloadItem
 		podcastList, err = filter.FilterItems(feed.Channels[0])
 		if err != nil {
-			log.Fatalf("Error %s: %v", podcast.Name, err)
+			printPodcastInfo(podcast, podcastList, n+1, err)
+			continue
+		}
+
+		if chekMode {
+			printPodcastInfo(podcast, podcastList, n+1, err)
 			continue
 		}
 
@@ -108,40 +85,66 @@ func syncPodcasts(startDate time.Time, count int) error {
 		}
 
 		// create download requests
-		reqs := []*grab.Request{}
-		for _, entry := range podcastList {
-			// create dir for each entry, path is set in filter
-			// according to rules in configuration
-
-			entryDownloadPath := filepath.Join(podcast.DownloadPath, entry.Dir)
-			if !fileExists(entryDownloadPath) {
-				if err := os.MkdirAll(entryDownloadPath, 0777); err != nil {
-					log.Fatal(err)
-					continue
-				}
-			}
-
-			req, _ := grab.NewRequest(entry.Url)
-			req.Filename = filepath.Join(entryDownloadPath, entry.Filename)
-			req.Size = uint64(entry.Size)
-			req.RemoveOnError = true
-			reqs = append(reqs, req)
-		}
-
-		allReqs = append(allReqs, reqs)
+		allReqs = append(allReqs, createRequests(podcast, podcastList))
 
 	}
 
-	startDownload(allReqs)
+	if !chekMode {
+		startDownload(allReqs)
 
-	for _, podcast := range cfg.GetAllPodcasts() {
-		podcast.LastSynced = time.Now()
-		if err := cfg.UpdatePodcast(podcast); err != nil {
-			return err
+		for _, podcast := range podcasts {
+			podcast.LastSynced = time.Now()
+			if err := cfg.UpdatePodcast(podcast); err != nil {
+				return err
+			}
 		}
 	}
 
 	return nil
+}
+
+func printPodcastInfo(podcast *Podcast, podcastList []*DownloadItem, index int, err error) {
+
+	status := ""
+	num := color.MagentaString("[" + strconv.Itoa(index) + "] ")
+	if err != nil {
+		status = color.RedString("FAIL")
+	} else {
+		color.GreenString("OK")
+	}
+
+	log.Printf("%s %s", num, podcast.Name)
+	log.Printf("\t* Url             : %s %s", podcast.Url, status)
+	if err != nil {
+		log.Warnf("Error: %s", err)
+	} else {
+		log.Printf("\t* Awaiting files  : %d", len(podcastList))
+		for k, podcast := range podcastList {
+			log.Printf("\t\t* [%d] : %s", k, podcast.ItemTitle)
+		}
+	}
+}
+
+func createRequests(podcast *Podcast, podcastList []*DownloadItem) []*grab.Request {
+	reqs := []*grab.Request{}
+	for _, entry := range podcastList {
+		// create dir for each entry, path is set in filter
+		// according to rules in configuration
+		entryDownloadPath := filepath.Join(podcast.DownloadPath, entry.Dir)
+		if !fileExists(entryDownloadPath) {
+			if err := os.MkdirAll(entryDownloadPath, 0777); err != nil {
+				log.Fatal(err)
+				continue
+			}
+		}
+
+		req, _ := grab.NewRequest(entry.Url)
+		req.Filename = filepath.Join(entryDownloadPath, entry.Filename)
+		req.Size = uint64(entry.Size)
+		req.RemoveOnError = true
+		reqs = append(reqs, req)
+	}
+	return reqs
 }
 
 func startDownload(downloadReqs [][]*grab.Request) {
@@ -189,7 +192,7 @@ func startDownload(downloadReqs [][]*grab.Request) {
 		}(podcastReq)
 	}
 	checkDownloadProgress(statusQueue, totalFiles)
-	log.Infof("%d files successfully downloaded.\n", totalFiles)
+	log.Infof("%d files downloaded.\n", totalFiles)
 }
 
 type downloadStatus struct {

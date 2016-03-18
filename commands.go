@@ -127,23 +127,18 @@ func cmdRemove() cli.Command {
 		}
 
 		nameOrId := c.Args().First()
-		p, err := cfg.GetPodcastByName(nameOrId)
+		p, err := cfg.GetPodcastByNameOrId(nameOrId)
 		if err != nil {
-			var n int
-			n, err = strconv.Atoi(nameOrId)
-			if err == nil {
-				p, err = cfg.GetPodcastByIndex(n - 1)
+			if err == ErrPodcastWasNotFound {
+				log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrId)
+			} else {
+				log.Fatal(err)
 			}
+			return
 		}
+		cfg.RemovePodcast(p.Name)
+		log.Printf("* [%s] removed", nameOrId)
 
-		if err == nil {
-			cfg.RemovePodcast(p.Name)
-			log.Printf("* [%s] removed", nameOrId)
-		} else if err == ErrPodcastWasNotFound {
-			log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrId)
-		} else {
-			log.Fatal(err)
-		}
 	}
 
 	return cmd
@@ -169,8 +164,40 @@ func cmdCheck() cli.Command {
 	cmd.Name = "check"
 	cmd.ShortName = "c"
 	cmd.Usage = "check podcasts for availability"
+	cmd.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "date, d",
+			Usage: "Start date for sync [format: YYYYMMDD]",
+		},
+		cli.IntFlag{
+			Name:  "count, c",
+			Value: -1,
+			Usage: "Number of podcasts to download ( -1 means all )",
+		},
+		cli.StringFlag{
+			Name:  "name, n",
+			Value: "",
+			Usage: "Name or Id of podacast to sync",
+		},
+	}
 	cmd.Action = func(c *cli.Context) {
-		checkPodcasts()
+		var date time.Time
+		var err error
+
+		if c.IsSet("date") {
+			if date, err = parseTime(c.String("date")); err != nil {
+				log.Fatal(err)
+				return
+			}
+		}
+
+		podcastCount := c.Int("count")
+		nameOrId := c.String("name")
+		if err = syncPodcasts(date, nameOrId, podcastCount, true); err != nil {
+			log.Fatal(err)
+		}
+
+		//checkPodcasts(date, nameOrId, podcastCount)
 	}
 
 	return cmd
@@ -194,6 +221,11 @@ func cmdSync() cli.Command {
 			Value: -1,
 			Usage: "Number of podcasts to download ( -1 means all )",
 		},
+		cli.StringFlag{
+			Name:  "name, n",
+			Value: "",
+			Usage: "Name or Id of podacast to sync",
+		},
 	}
 	cmd.Action = func(c *cli.Context) {
 		var date time.Time
@@ -207,9 +239,10 @@ func cmdSync() cli.Command {
 		}
 
 		podcastCount := c.Int("count")
+		nameOrId := c.String("name")
 
 		log.Infof("Started at %s", time.Now())
-		if err = syncPodcasts(date, podcastCount); err != nil {
+		if err = syncPodcasts(date, nameOrId, podcastCount, false); err != nil {
 			log.Fatal(err)
 		}
 		log.Infof("Finished at %s", time.Now())
