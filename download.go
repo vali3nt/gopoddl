@@ -7,115 +7,122 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cavaliercoder/grab"
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
+	rss "github.com/jteeuwen/go-pkg-rss"
 )
+
+func getRss(podcast *Podcast) (*rss.Feed, error) {
+
+	feed := rss.New(1, true, nil, nil)
+	if err := feed.Fetch(podcast.Url, nil); err != nil {
+		return nil, err
+	}
+	return feed, nil
+}
+
+func getRssName(url string) (string, error) {
+	feed := rss.New(1, true, nil, nil)
+	if err := feed.Fetch(url, nil); err != nil {
+		return "", err
+	}
+	return feed.Channels[0].Title, nil
+}
 
 func checkPodcasts() {
 	var date time.Time
 	// parse input date
-	for n := range store.Podcasts {
-		p := store.Podcasts[n]
+	for n, podcast := range cfg.GetAllPodcasts() {
 
-		// exclude disabled
-		if disable, err := cfg.Bool(p.Name, "disable"); err != nil {
-			// TODO: replace fatal error to disable=false
-			log.Fatalf("Failed to get 'disable' option: %s", err)
-		} else if disable {
-			continue
-		}
+		filter := MakeFilter(podcast)
+		filter.Count = -1
+		filter.StartDate = date
 
-		// build filter
-		mtype := strings.Split(getCfgStringNoErr(p.Name, "mtype"), ",")
-		f := PodcastFilter{
-			StartDate:    date,
-			Count:        -1,
-			MediaType:    mtype,
-			Filter:       getCfgStringNoErr(p.Name, "filter"),
-			DateFormat:   getCfgStringNoErr(p.Name, "date-format"),
-			SeperatePath: getCfgStringNoErr(p.Name, "separate-dir"),
-		}
-
-		// Get list
-		podcastList, err := store.Filter(p, &f)
 		status := color.GreenString("OK")
+		num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
+		var podcastList []*DownloadItem
+
+		// Download rss
+
+		feed, err := getRss(podcast)
+		if err == nil {
+			if len(feed.Channels) == 0 {
+				log.Warnf(fmt.Sprintf("No channels in %s", podcast.Name))
+				continue
+			}
+			podcastList, err = filter.FilterItems(feed.Channels[0])
+		}
+		// colorize error message
 		if err != nil {
 			status = color.RedString("FAIL")
 		}
-		num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
 
-		log.Printf("%s %s", num, p.Name)
-		log.Printf("\t* Url             : %s %s", p.Url, status)
+		log.Printf("%s %s", num, podcast.Name)
+		log.Printf("\t* Url             : %s %s", podcast.Url, status)
 		if err != nil {
 			log.Debugf("Error: %s", err)
 		} else {
 			log.Printf("\t* Awaiting files  : %d", len(podcastList))
 			for k := range podcastList {
-				log.Printf("\t\t* [%d] : %s", k, podcastList[k].ItemTitile)
+				log.Printf("\t\t* [%d] : %s", k, podcastList[k].ItemTitle)
 			}
 		}
 	}
 }
 
-func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
+func syncPodcasts(startDate time.Time, count int) error {
 	allReqs := [][]*grab.Request{}
-	for n := range store.Podcasts {
-		p := store.Podcasts[n]
+	for _, podcast := range cfg.GetAllPodcasts() {
 
-		// exclude disabled
-		if disable, err := cfg.Bool(p.Name, "disable"); err != nil {
-			log.Fatalf("Failed to get 'disable' option: %s", err)
-		} else if disable {
+		filter := MakeFilter(podcast)
+		filter.Count = count
+		filter.StartDate = startDate
+
+		// download rss
+		feed, err := getRss(podcast)
+		if err != nil {
+			log.Fatalf("Error %s: %v", podcast.Name, err)
 			continue
 		}
 
-		// build filter
-		mtype := strings.Split(getCfgStringNoErr(p.Name, "mtype"), ",")
-		filter := PodcastFilter{
-			StartDate:    startDate,
-			Count:        count,
-			MediaType:    mtype,
-			Filter:       getCfgStringNoErr(p.Name, "filter"),
-			DateFormat:   getCfgStringNoErr(p.Name, "date-format"),
-			SeperatePath: getCfgStringNoErr(p.Name, "separate-dir"),
+		if len(feed.Channels) == 0 {
+			log.Warnf(fmt.Sprintf("No channels in %s", podcast.Name))
+			continue
 		}
-		// get list
-		downloadPath := getCfgStringNoErr(p.Name, "download-path")
-		podcastList, err := store.Filter(p, &filter)
 
+		// filter
+		var podcastList []*DownloadItem
+		podcastList, err = filter.FilterItems(feed.Channels[0])
 		if err != nil {
-			log.Fatalf("Error %s: %v", p.Name, err)
+			log.Fatalf("Error %s: %v", podcast.Name, err)
 			continue
 		}
 
 		// check for emptiness
 		if len(podcastList) == 0 {
-			log.Printf("%s : %s, %d files", color.CyanString("cyan", "EMPTY"),
-				store.Podcasts[n].Name, len(podcastList))
+			log.Printf("%s : %s, %d files", color.CyanString("EMPTY"), podcast.Name, len(podcastList))
 			continue
-		}
-
-		// create dir if needed
-		if !fileExists(downloadPath) {
-			if err := os.MkdirAll(downloadPath, 0777); err != nil {
-				log.Fatal(err)
-				continue
-			}
 		}
 
 		// create download requests
 		reqs := []*grab.Request{}
 		for _, entry := range podcastList {
-			downloadFilePath := filepath.Join(downloadPath, entry.Filename)
-			if !isOverwrite && fileExists(downloadFilePath) {
-				continue
+			// create dir for each entry, path is set in filter
+			// according to rules in configuration
+
+			entryDownloadPath := filepath.Join(podcast.DownloadPath, entry.Dir)
+			if !fileExists(entryDownloadPath) {
+				if err := os.MkdirAll(entryDownloadPath, 0777); err != nil {
+					log.Fatal(err)
+					continue
+				}
 			}
+
 			req, _ := grab.NewRequest(entry.Url)
-			req.Filename = downloadFilePath
+			req.Filename = filepath.Join(entryDownloadPath, entry.Filename)
 			req.Size = uint64(entry.Size)
 			req.RemoveOnError = true
 			reqs = append(reqs, req)
@@ -127,10 +134,12 @@ func syncPodcasts(startDate time.Time, count int, isOverwrite bool) error {
 
 	startDownload(allReqs)
 
-	for n := range store.Podcasts {
-		store.Podcasts[n].LastSynced = time.Now()
+	for _, podcast := range cfg.GetAllPodcasts() {
+		podcast.LastSynced = time.Now()
+		if err := cfg.UpdatePodcast(podcast); err != nil {
+			return err
+		}
 	}
-	store.Save()
 
 	return nil
 }
@@ -153,6 +162,7 @@ func startDownload(downloadReqs [][]*grab.Request) {
 	}()
 
 	totalFiles := 0
+	// FIXME : hangs if files exists
 	for _, podcastReq := range downloadReqs {
 		totalFiles += len(podcastReq)
 
@@ -240,7 +250,7 @@ func showProgressError(ui *uilive.Writer, status *downloadStatus) {
 
 func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
 	fmt.Fprintf(ui.Bypass(),
-		"Finished %s[%d/%d] %d / %d bytes (%d%%)\n",
+		"Finished %s [%d/%d] %d / %d bytes (%d%%)\n",
 		status.Response.Filename,
 		status.Current, status.Total,
 		status.Response.BytesTransferred(),
@@ -249,7 +259,7 @@ func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
 }
 
 func showProgressProc(ui *uilive.Writer, status *downloadStatus) {
-	fmt.Fprintf(ui, "Downloading %s[%d/%d] %d / %d bytes (%d%%)\n",
+	fmt.Fprintf(ui, "Downloading %s [%d/%d] %d / %d bytes (%d%%)\n",
 		status.Response.Filename,
 		status.Current, status.Total,
 		status.Response.BytesTransferred(),

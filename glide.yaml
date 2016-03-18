@@ -2,8 +2,8 @@ package: github.com/vali3nt/gopoddl
 import:
 - package: github.com/codegangsta/cli
 - package: github.com/jteeuwen/go-pkg-rss
-- package: github.com/robfig/config
 - package: github.com/cavaliercoder/grab
 - package: github.com/gosuri/uilive
 - package: github.com/iamthemuffinman/logsip
 - package: github.com/fatih/color
+- package: github.com/go-ini/ini

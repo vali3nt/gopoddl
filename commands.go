@@ -25,31 +25,21 @@ func cmdInit() cli.Command {
 	cmd := cli.Command{}
 	cmd.Name = "init"
 	cmd.ShortName = "i"
-	cmd.Usage = "create default config files"
+	cmd.Usage = "create default config file"
 	cmd.Action = func(c *cli.Context) {
 		cfgFile := expandPath(c.GlobalString("config"))
-		storeFile := expandPath(c.GlobalString("store"))
 
 		if !fileExists(cfgFile) {
 			log.Debugf("Creating : %s\n", cfgFile)
-			if err := InitConf(cfgFile); err != nil { // create config file
+			if err := CreateDefaultConfig(cfgFile); err != nil { // create config file
 				log.Fatal(err)
 			}
 
-			log.Print(color.GreenString("Default config created."))
-			log.Printf("* Do not forget to change download_path in %s", cfgFile)
-			log.Print("* It's set to HOME directory")
+			log.Info(color.GreenString("Default config created."))
+			log.Infof("* Do not forget to change download_path in %s", cfgFile)
+			log.Info("* It's set to HOME directory by default")
 		} else {
-			log.Printf("* Config file %s exists", cfgFile)
-		}
-
-		if !fileExists(storeFile) {
-			log.Debugf("Creating : %s", storeFile)
-			if err := InitStore(storeFile); err != nil { // create store file
-				log.Fatal(err)
-			}
-		} else {
-			log.Printf("* Store file %s exists", storeFile)
+			log.Infof("* Config file %s exists", cfgFile)
 		}
 	}
 	return cmd
@@ -62,31 +52,27 @@ func cmdList() cli.Command {
 	cmd.ShortName = "l"
 	cmd.Usage = "list all podcasts"
 	cmd.Action = func(c *cli.Context) {
-		if len(store.Podcasts) == 0 {
-			log.Warn("No podcasts in store yet")
+		if cfg.PodcastLen() == 0 {
+			log.Warn("No podcasts added yet")
 			return
 		}
-		for n := range store.Podcasts {
+		for n, podcast := range cfg.GetAllPodcasts() {
 			var lastUpdated string
-			isDisabled := ""
-			if disable, err := cfg.Bool(store.Podcasts[n].Name, "disable"); err != nil {
-				log.Fatalf("Failed to get 'disable' option: %s", err)
-			} else if disable {
-				isDisabled = color.YellowString("[disabled]")
+			isDisabledStr := ""
+			if podcast.Disabled {
+				isDisabledStr = color.YellowString("[disabled]")
 			}
 
-			if store.Podcasts[n].LastSynced.IsZero() {
+			if podcast.LastSynced.IsZero() {
 				lastUpdated = color.CyanString("Never")
 			} else {
-				lastUpdated = fmt.Sprintf("%s [%d days ago]",
-					store.Podcasts[n].LastSynced.Format("2006-01-02 15:4"),
-					int(time.Now().Sub(store.Podcasts[n].LastSynced)/(24*time.Hour)))
+				lastUpdated = fmt.Sprintf("%s [%d days ago]", podcast.LastSynced.Format("2006-01-02 15:4"),
+					int(time.Now().Sub(podcast.LastSynced)/(24*time.Hour)))
 			}
 			num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
-			log.Printf("%s %s %s", num, store.Podcasts[n].Name, isDisabled)
-			log.Printf("\t* Url             : %s", store.Podcasts[n].Url)
+			log.Printf("%s %s %s", num, podcast.Name, isDisabledStr)
+			log.Printf("\t* Url             : %s", podcast.Url)
 			log.Printf("\t* Last synced     : %s", lastUpdated)
-			log.Printf("\t* Files downloaded: %d", store.Podcasts[n].DownloadedFiles)
 		}
 	}
 	return cmd
@@ -106,9 +92,18 @@ func cmdAdd() cli.Command {
 		url := c.Args().Get(0)
 		podcastName := c.Args().Get(1)
 
-		if err := store.Add(url, podcastName); err != nil {
-			if err == ErrAlreadyExistInStore {
-				log.Warnf("Podcast <%s> exists in store already", podcastName)
+		if podcastName == "" {
+			var err error
+			podcastName, err = getRssName(url)
+			if err != nil {
+				log.Fatalf("Failed to get podacast name from url: %s, Error: %v", url, err)
+				return
+			}
+		}
+
+		if err := cfg.AddPodcast(podcastName, url); err != nil {
+			if err == ErrPodacastAlreadyExist {
+				log.Warnf("Podcast <%s> exists already", podcastName)
 			} else {
 				log.Fatal(err)
 			}
@@ -132,15 +127,23 @@ func cmdRemove() cli.Command {
 		}
 
 		nameOrId := c.Args().First()
-		if err := store.Remove(nameOrId); err != nil {
-			if err == ErrWasNotFoundInStore {
-				log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrId)
-			} else {
-				log.Fatal(err)
+		p, err := cfg.GetPodcastByName(nameOrId)
+		if err != nil {
+			var n int
+			n, err = strconv.Atoi(nameOrId)
+			if err == nil {
+				p, err = cfg.GetPodcastByIndex(n - 1)
 			}
-			return
 		}
-		log.Printf("* [%s] removed", nameOrId)
+
+		if err == nil {
+			cfg.RemovePodcast(p.Name)
+			log.Printf("* [%s] removed", nameOrId)
+		} else if err == ErrPodcastWasNotFound {
+			log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrId)
+		} else {
+			log.Fatal(err)
+		}
 	}
 
 	return cmd
@@ -152,7 +155,7 @@ func cmdReset() cli.Command {
 	cmd.Name = "reset"
 	cmd.Usage = "reset time and count for podcasts"
 	cmd.Action = func(c *cli.Context) {
-		if err := store.ResetAll(); err != nil {
+		if err := cfg.ResetAll(); err != nil {
 			log.Fatal(err)
 		}
 	}
@@ -174,6 +177,7 @@ func cmdCheck() cli.Command {
 }
 
 // 'sync' - command
+// TODO: add to sync only one podcast
 func cmdSync() cli.Command {
 	cmd := cli.Command{}
 	cmd.Name = "sync"
@@ -190,14 +194,6 @@ func cmdSync() cli.Command {
 			Value: -1,
 			Usage: "Number of podcasts to download ( -1 means all )",
 		},
-		cli.BoolFlag{
-			Name:  "overwrite, o",
-			Usage: "Overwrite files on download",
-		},
-		cli.BoolFlag{
-			Name:  "progress",
-			Usage: "Show progress with bar",
-		},
 	}
 	cmd.Action = func(c *cli.Context) {
 		var date time.Time
@@ -211,10 +207,9 @@ func cmdSync() cli.Command {
 		}
 
 		podcastCount := c.Int("count")
-		isOverwrite := c.Bool("overwrite")
 
 		log.Infof("Started at %s", time.Now())
-		if err = syncPodcasts(date, podcastCount, isOverwrite); err != nil {
+		if err = syncPodcasts(date, podcastCount); err != nil {
 			log.Fatal(err)
 		}
 		log.Infof("Finished at %s", time.Now())
