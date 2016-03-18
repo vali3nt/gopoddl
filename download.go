@@ -93,6 +93,7 @@ func syncPodcasts(startDate time.Time, nameOrId string, count int, chekMode bool
 		startDownload(allReqs)
 
 		for _, podcast := range podcasts {
+			// TODO: should me max podcast public date
 			podcast.LastSynced = time.Now()
 			if err := cfg.UpdatePodcast(podcast); err != nil {
 				return err
@@ -159,13 +160,12 @@ func startDownload(downloadReqs [][]*grab.Request) {
 		for i := 0; i < requestCount; i++ {
 			<-doneQueue
 		}
-		// clise channels
+		// close channels
 		close(statusQueue)
 		close(doneQueue)
 	}()
 
 	totalFiles := 0
-	// FIXME : hangs if files exists
 	for _, podcastReq := range downloadReqs {
 		totalFiles += len(podcastReq)
 
@@ -187,8 +187,16 @@ func startDownload(downloadReqs [][]*grab.Request) {
 					Response: resp,
 				}
 
+				// i want files downloaded one by one, so wait until completed
+				for {
+					if !resp.IsComplete() {
+						time.Sleep(200 * time.Microsecond)
+					} else {
+						break
+					}
+				}
 			}
-			doneQueue <- true
+
 		}(podcastReq)
 	}
 	checkDownloadProgress(statusQueue, totalFiles)
