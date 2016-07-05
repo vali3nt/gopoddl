@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/codegangsta/cli"
 	"github.com/iamthemuffinman/logsip"
+	"github.com/urfave/cli"
 )
 
 var (

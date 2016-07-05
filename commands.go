@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/codegangsta/cli"
 	"github.com/fatih/color"
+	"github.com/urfave/cli"
 )
 
 // if argment len is less then count
@@ -26,13 +26,13 @@ func cmdInit() cli.Command {
 	cmd.Name = "init"
 	cmd.ShortName = "i"
 	cmd.Usage = "create default config file"
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		cfgFile := expandPath(c.GlobalString("config"))
 
 		if !fileExists(cfgFile) {
 			log.Debugf("Creating : %s\n", cfgFile)
 			if err := CreateDefaultConfig(cfgFile); err != nil { // create config file
-				log.Fatal(err)
+				return cli.NewExitError(err.Error(), 1)
 			}
 
 			log.Info(color.GreenString("Default config created."))
@@ -41,6 +41,7 @@ func cmdInit() cli.Command {
 		} else {
 			log.Infof("* Config file %s exists", cfgFile)
 		}
+		return nil
 	}
 	return cmd
 }
@@ -51,10 +52,10 @@ func cmdList() cli.Command {
 	cmd.Name = "list"
 	cmd.ShortName = "l"
 	cmd.Usage = "list all podcasts"
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		if cfg.PodcastLen() == 0 {
 			log.Warn("No podcasts added yet")
-			return
+			return nil
 		}
 		for n, podcast := range cfg.GetAllPodcasts() {
 			var lastUpdated string
@@ -74,6 +75,7 @@ func cmdList() cli.Command {
 			log.Printf("\t* Url             : %s", podcast.Url)
 			log.Printf("\t* Last synced     : %s", lastUpdated)
 		}
+		return nil
 	}
 	return cmd
 }
@@ -84,9 +86,9 @@ func cmdAdd() cli.Command {
 	cmd.Name = "add"
 	cmd.ShortName = "a"
 	cmd.Usage = "add podcast to sync"
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		if !checkArgumentsCount(c, "add", 1) {
-			return
+			return cli.NewExitError("", 1)
 		}
 
 		url := c.Args().Get(0)
@@ -96,20 +98,21 @@ func cmdAdd() cli.Command {
 			var err error
 			podcastName, err = getRssName(url)
 			if err != nil {
-				log.Fatalf("Failed to get podacast name from url: %s, Error: %v", url, err)
-				return
+				log.Fatal("Failed to get podacast name from url: %s, Error: %s", url, err.Error())
+				return cli.NewExitError("", 1)
 			}
 		}
 
 		if err := cfg.AddPodcast(podcastName, url); err != nil {
 			if err == ErrPodacastAlreadyExist {
 				log.Warnf("Podcast <%s> exists already", podcastName)
+				return cli.NewExitError("", 1)
 			} else {
-				log.Fatal(err)
+				return cli.NewExitError(err.Error(), 1)
 			}
-			return
 		}
 		log.Printf("* Podcast [%s] added", podcastName)
+		return nil
 	}
 
 	return cmd
@@ -121,24 +124,24 @@ func cmdRemove() cli.Command {
 	cmd.Name = "remove"
 	cmd.ShortName = "r"
 	cmd.Usage = "remove podcast from sync"
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		if !checkArgumentsCount(c, "remove", 1) {
-			return
+			return cli.NewExitError("", 1)
 		}
 
-		nameOrId := c.Args().First()
-		p, err := cfg.GetPodcastByNameOrId(nameOrId)
+		nameOrID := c.Args().First()
+		p, err := cfg.GetPodcastByNameOrID(nameOrID)
 		if err != nil {
 			if err == ErrPodcastWasNotFound {
-				log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrId)
+				log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrID)
+				return cli.NewExitError("", 1)
 			} else {
-				log.Fatal(err)
+				return cli.NewExitError(err.Error(), 1)
 			}
-			return
 		}
 		cfg.RemovePodcast(p.Name)
-		log.Printf("* [%s] removed", nameOrId)
-
+		log.Printf("* [%s] removed", nameOrID)
+		return nil
 	}
 
 	return cmd
@@ -149,10 +152,11 @@ func cmdReset() cli.Command {
 	cmd := cli.Command{}
 	cmd.Name = "reset"
 	cmd.Usage = "reset time and count for podcasts"
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		if err := cfg.ResetAll(); err != nil {
-			log.Fatal(err)
+			return cli.NewExitError(err.Error(), 1)
 		}
+		return nil
 	}
 
 	return cmd
@@ -180,24 +184,23 @@ func cmdCheck() cli.Command {
 			Usage: "Name or Id of podacast to sync",
 		},
 	}
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		var date time.Time
 		var err error
 
 		if c.IsSet("date") {
 			if date, err = parseTime(c.String("date")); err != nil {
-				log.Fatal(err)
-				return
+				return cli.NewExitError(err.Error(), 1)
 			}
 		}
 
 		podcastCount := c.Int("count")
-		nameOrId := c.String("name")
-		if err = syncPodcasts(date, nameOrId, podcastCount, true); err != nil {
-			log.Fatal(err)
+		nameOrID := c.String("name")
+		if err = syncPodcasts(date, nameOrID, podcastCount, true); err != nil {
+			return cli.NewExitError(err.Error(), 1)
 		}
 
-		//checkPodcasts(date, nameOrId, podcastCount)
+		return nil
 	}
 
 	return cmd
@@ -227,25 +230,25 @@ func cmdSync() cli.Command {
 			Usage: "Name or Id of podacast to sync",
 		},
 	}
-	cmd.Action = func(c *cli.Context) {
+	cmd.Action = func(c *cli.Context) error {
 		var date time.Time
 		var err error
 
 		if c.IsSet("date") {
 			if date, err = parseTime(c.String("date")); err != nil {
-				log.Fatal(err)
-				return
+				return cli.NewExitError(err.Error(), 1)
 			}
 		}
 
 		podcastCount := c.Int("count")
-		nameOrId := c.String("name")
+		nameOrID := c.String("name")
 
 		log.Infof("Started at %s", time.Now())
-		if err = syncPodcasts(date, nameOrId, podcastCount, false); err != nil {
-			log.Fatal(err)
+		if err = syncPodcasts(date, nameOrID, podcastCount, false); err != nil {
+			return cli.NewExitError(err.Error(), 1)
 		}
 		log.Infof("Finished at %s", time.Now())
+		return nil
 	}
 
 	return cmd

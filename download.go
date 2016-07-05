@@ -32,14 +32,14 @@ func getRssName(url string) (string, error) {
 	return feed.Channels[0].Title, nil
 }
 
-func syncPodcasts(startDate time.Time, nameOrId string, count int, chekMode bool) error {
+func syncPodcasts(startDate time.Time, nameOrID string, count int, chekMode bool) error {
 	allReqs := [][]*grab.Request{}
 	podcasts := []*Podcast{}
 
-	if nameOrId == "" {
+	if nameOrID == "" {
 		podcasts = cfg.GetAllPodcasts()
 	} else {
-		p, err := cfg.GetPodcastByNameOrId(nameOrId)
+		p, err := cfg.GetPodcastByNameOrID(nameOrID)
 		if err != nil {
 			return err
 		}

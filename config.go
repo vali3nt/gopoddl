@@ -12,7 +12,7 @@ import (
 const (
 	defaultComment = `# gopoddl - settings each setting can be overridden per podcast section ( header : Podcast name)
 #
-# Available tokens:    
+# Available tokens:
 #    {{Title}}           Podcast title
 #    {{Name}}            Podcast name in the gopoddl
 #    {{PubDate}}         Podcast publish date
@@ -40,7 +40,7 @@ const (
 #                        following tokens can be used:
 #                            {{ItemTitle}}, {{ItemUrl}}, {{ItemDescription}}
 #                        Format:
-#                            <string> [not] in [suffix|prefix] <VAR> [and|or] .... 
+#                            <string> [not] in [suffix|prefix] <VAR> [and|or] ....
 #                        Example:
 #                            "'Day' not in {{ItemDescription}} or 'Day' not in {{ItemTitle}}"
 #                            all podcast with 'Day' in title or in descripion will be ignored
@@ -172,7 +172,7 @@ func (c *Config) GetPodcastByName(name string) (*Podcast, error) {
 	return podcast, nil
 }
 
-func (c *Config) GetPodcastByNameOrId(nameOrId string) (*Podcast, error) {
+func (c *Config) GetPodcastByNameOrID(nameOrId string) (*Podcast, error) {
 	p, err := c.GetPodcastByName(nameOrId)
 	if err != nil {
 		var n int
