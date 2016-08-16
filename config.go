@@ -59,13 +59,15 @@ var (
 	//errIntenalNowAllowd     = errors.New("not allowed to work with DEFAULT section")
 )
 
+// Podcast - mandatory settings, set per podcast
 type Podcast struct {
-	Name       string    `ini:"-"`
-	Url        string    `ini:"url"`
-	LastSynced time.Time `ini:"last-synced"`
-	PodcastSettings
+	Name            string    `ini:"-"`
+	Url             string    `ini:"url"`
+	LastSynced      time.Time `ini:"last-synced"`
+	PodcastSettings `ini:"Podcast"`
 }
 
+// PodcastSettings - global settings, can be customized per podcast
 type PodcastSettings struct {
 	DownloadPath string `ini:"download-path"`
 	SeparateDir  string `ini:"separate-dir"`
@@ -75,7 +77,7 @@ type PodcastSettings struct {
 	Mtype        string `ini:"mtype"`
 }
 
-// creates inital configurtion and save it to file
+// CreateDefaultConfig creates inital configurtion and save it to file
 func CreateDefaultConfig(filePath string) error {
 	cfg := ini.Empty()
 	defaultSection := cfg.Section("")
@@ -99,23 +101,26 @@ type Config struct {
 	cfg        *ini.File
 }
 
+// NewConfig creates config object from file
 func NewConfig(configPath string) (*Config, error) {
 	var err error
 	c := new(Config)
 	c.configPath = configPath
 
-	c.cfg, err = ini.Load(configPath)
+	c.cfg, err = ini.InsensitiveLoad(configPath)
 	if err != nil {
 		return nil, err
 	}
 	return c, nil
 }
 
+// UpdatePodcast updates last-synced for podacast to config file and saves it disk
 func (c *Config) UpdatePodcast(podcast *Podcast) error {
 	c.cfg.Section(podcast.Name).Key("last-synced").SetValue(podcast.LastSynced.Format(time.RFC3339))
 	return c.cfg.SaveTo(c.configPath)
 }
 
+// AddPodcast - adds new podcast to config and saves it disk
 func (c *Config) AddPodcast(name, url string) error {
 	var emptyDate time.Time
 	_, err := c.cfg.GetSection(name)
@@ -127,6 +132,7 @@ func (c *Config) AddPodcast(name, url string) error {
 	return c.cfg.SaveTo(c.configPath)
 }
 
+// RemovePodcast  removes podcast from config and saves it disk
 func (c *Config) RemovePodcast(name string) error {
 	_, err := c.cfg.GetSection(name)
 	if err != nil {
@@ -137,6 +143,7 @@ func (c *Config) RemovePodcast(name string) error {
 	return c.cfg.SaveTo(c.configPath)
 }
 
+// ResetAll reset LastSynced to nil for all podcasts
 func (c *Config) ResetAll() error {
 	var emptyTime time.Time
 	for _, podcast := range c.GetAllPodcasts() {
@@ -146,11 +153,13 @@ func (c *Config) ResetAll() error {
 	return c.cfg.SaveTo(c.configPath)
 }
 
+// PodcastLen returns podcasts count
 func (c *Config) PodcastLen() int {
 	// deduct defult section
 	return len(c.cfg.SectionStrings()) - 1
 }
 
+// GetPodcastByName retuns podcast settings by name
 func (c *Config) GetPodcastByName(name string) (*Podcast, error) {
 	// load default section
 	pDefault := new(PodcastSettings)
@@ -163,20 +172,25 @@ func (c *Config) GetPodcastByName(name string) (*Podcast, error) {
 		return nil, ErrPodcastWasNotFound
 	}
 
-	podcast := &Podcast{PodcastSettings: *pDefault}
-	podcast.Name = name
+	if err := section.MapTo(pDefault); err != nil {
+		return nil, err
+	}
+	podcast := &Podcast{PodcastSettings: *pDefault, Name: name}
 	if err := section.MapTo(podcast); err != nil {
 		return nil, err
 	}
 
+	fmt.Println("Podacast", podcast)
+
 	return podcast, nil
 }
 
-func (c *Config) GetPodcastByNameOrID(nameOrId string) (*Podcast, error) {
-	p, err := c.GetPodcastByName(nameOrId)
+// GetPodcastByNameOrID retuns podcast settings by name or index
+func (c *Config) GetPodcastByNameOrID(nameOrID string) (*Podcast, error) {
+	p, err := c.GetPodcastByName(nameOrID)
 	if err != nil {
 		var n int
-		n, err = strconv.Atoi(nameOrId)
+		n, err = strconv.Atoi(nameOrID)
 		if err == nil {
 			p, err = c.GetPodcastByIndex(n - 1)
 		}
@@ -187,14 +201,16 @@ func (c *Config) GetPodcastByNameOrID(nameOrId string) (*Podcast, error) {
 	return nil, err
 }
 
+// GetPodcastByIndex retuns podcast settings by index
 func (c *Config) GetPodcastByIndex(index int) (*Podcast, error) {
 	if index > c.PodcastLen() || index < 0 {
-		return nil, errors.New(fmt.Sprintf("cfg: Invalid input : %v", index))
+		return nil, fmt.Errorf(fmt.Sprintf("cfg: Invalid input : %v", index))
 	}
 	sectionName := c.cfg.SectionStrings()[index+1]
 	return c.GetPodcastByName(sectionName)
 }
 
+// GetAllPodcasts retuns all podcasts stored in config
 func (c *Config) GetAllPodcasts() []*Podcast {
 	podcasts := []*Podcast{}
 	for _, sectionName := range c.cfg.SectionStrings() {

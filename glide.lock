@@ -1,5 +1,5 @@
-hash: 4c9425dca7f36e5e2f4d68c462df024694584f84847723c8225512407316c9c7
-updated: 2016-06-16T19:30:18.3726256+03:00
+hash: 53e5b7ea99598332925802154141580131db9cf89c899f88a9c282dede5e5a2f
+updated: 2016-08-16T13:10:25.9005896+03:00
 imports:
 - name: github.com/cavaliercoder/grab
   version: 7381b99b8aae6f1c520bebd8274117d936c61fb8
@@ -8,7 +8,7 @@ imports:
 - name: github.com/fatih/color
   version: 4f7bcef27eec7925456d0c30c5e7b0408b3339be
 - name: github.com/go-ini/ini
-  version: 72ba3e6b9e6b87e0c74c9a7a4dc86e8dd8ba4355
+  version: cefc24de9422bb3a6422b307cb3f4502ffd5640c
 - name: github.com/gosuri/uilive
   version: efb88ccd059957c48f24f9d351d33a0eb00ede41
 - name: github.com/iamthemuffinman/logsip
@@ -24,9 +24,11 @@ imports:
   version: 56b76bdf51f7708750eac80fa38b952bb9f32639
   repo: https://github.com/mattn/go-isatty
 - name: github.com/urfave/cli
-  version: 06a850dff5bf1a4104835699e31067cc8103fcf7
+  version: 168c95418e66e019fe17b8f4f5c45aa62ff80e23
 - name: golang.org/x/sys
   version: 442cd600860ce722f6615730eb008a37a87b13ee
   subpackages:
   - unix
-devImports: []
+- name: gopkg.in/stretchr/testify.v1
+  version: f390dcf405f7b83c997eac1b06768bb9f44dec18
+testImports: []

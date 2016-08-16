@@ -249,6 +249,10 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) {
 	ui.Stop()
 }
 
+func bytesToMb(bytesCount uint64) float64 {
+	return float64(bytesCount / 1024 / 1024)
+}
+
 func showProgressError(ui *uilive.Writer, status *downloadStatus) {
 	fmt.Fprintf(ui.Bypass(), "Error downloading %s: %v\n",
 		status.Response.Request.URL(),
@@ -257,20 +261,20 @@ func showProgressError(ui *uilive.Writer, status *downloadStatus) {
 
 func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
 	fmt.Fprintf(ui.Bypass(),
-		"Finished %s [%d/%d] %d / %d bytes (%d%%)\n",
+		"Finished %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
 		status.Response.Filename,
 		status.Current, status.Total,
-		status.Response.BytesTransferred(),
-		status.Response.Size,
+		bytesToMb(status.Response.BytesTransferred()),
+		bytesToMb(status.Response.Size),
 		int(100*status.Response.Progress()))
 }
 
 func showProgressProc(ui *uilive.Writer, status *downloadStatus) {
-	fmt.Fprintf(ui, "Downloading %s [%d/%d] %d / %d bytes (%d%%)\n",
+	fmt.Fprintf(ui, "Downloading %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
 		status.Response.Filename,
 		status.Current, status.Total,
-		status.Response.BytesTransferred(),
-		status.Response.Size,
+		bytesToMb(status.Response.BytesTransferred()),
+		bytesToMb(status.Response.Size),
 		int(100*status.Response.Progress()))
 
 }

@@ -28,6 +28,7 @@ type DownloadItem struct {
 	ItemTitle string
 }
 
+// FilterItems filters items from podcast RSS, returns all passed DownloadItems
 func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 	itemsToDownload := []*DownloadItem{}
 	items := rssChannel.Items
@@ -36,11 +37,11 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 		itemDate, _ := item.ParsedPubDate()
 		if !f.StartDate.IsZero() {
 			if itemDate.Before(f.StartDate) {
-				log.Debug("filter:skipped by StartDate:", item.Title)
+				log.Debug("filter:skipped by StartDate: ", item.Title)
 				continue
 			}
 		} else if itemDate.Before(f.LastSynced) {
-			log.Debug("filter:skipped by LastSynced:", item.Title)
+			log.Debug("filter:skipped by LastSynced: ", item.Title)
 			continue
 		}
 
@@ -53,7 +54,7 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 					toSkip = false
 				}
 				if toSkip {
-					log.Debug("filter:skipped by MediaType:", item.Title)
+					log.Debug("filter:skipped by MediaType: ", item.Title)
 					continue E
 				}
 			}
@@ -67,10 +68,11 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 					"ItemUrl":         enclosure.Url,
 				}
 				if ok, err := EvalFilter(f.Filter, data); err != nil {
-					return itemsToDownload, err
+					log.Fatal("filter:error:", err)
+					continue E
 				} else {
 					if !ok {
-						log.Debug("filter:skipped by filter condition:", item.Title)
+						log.Debug("filter:skipped by filter condition: ", item.Title)
 						continue E
 					}
 				}
@@ -116,6 +118,7 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 	return itemsToDownload[0:count], nil
 }
 
+// MakeFilter creates new filter from podcast settings
 func MakeFilter(podcast *Podcast) *Filter {
 	return &Filter{
 		PodcastName:  podcast.Name,

@@ -6,11 +6,12 @@ import (
 )
 
 var condData = map[string]string{
-	"title":  "SOME is titile",
-	"descr":  "OTHER is description",
-	"first":  "first description",
-	"second": "second is description",
-	"third":  "third is description",
+	"title":   "SOME is titile",
+	"descr":   "OTHER is description",
+	"first":   "first description",
+	"second":  "second is description",
+	"third":   "third is description",
+	"unicode": "Кремов и Хрусталев @ Radio Record #1448",
 }
 
 var condTests = []struct {
@@ -56,6 +57,14 @@ var condTests = []struct {
 	},
 	{
 		in:  "'first' in {{first}} and ('second' not in {{second}} and 'third' in {{third}})",
+		out: false,
+	},
+	{
+		in:  "'Кремов' in {{unicode}}",
+		out: true,
+	},
+	{
+		in:  "'Текст' in {{unicode}}",
 		out: false,
 	},
 }
