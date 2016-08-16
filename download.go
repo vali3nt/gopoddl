@@ -250,7 +250,7 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) {
 }
 
 func bytesToMb(bytesCount uint64) float64 {
-	return float64(bytesCount / 1024 / 1024)
+	return float64(bytesCount) / float64(1024*1024)
 }
 
 func showProgressError(ui *uilive.Writer, status *downloadStatus) {
