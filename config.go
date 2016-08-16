@@ -180,8 +180,6 @@ func (c *Config) GetPodcastByName(name string) (*Podcast, error) {
 		return nil, err
 	}
 
-	fmt.Println("Podacast", podcast)
-
 	return podcast, nil
 }
 
