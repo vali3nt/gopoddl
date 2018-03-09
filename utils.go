@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -60,4 +61,12 @@ func parseTime(formatted string) (time.Time, error) {
 		}
 	}
 	return t, err
+}
+
+func parseStrToInt(digit string) int64 {
+	i64, err := strconv.ParseInt(digit, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return i64
 }

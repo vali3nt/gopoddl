@@ -13,6 +13,15 @@ var (
 	log      *logsip.Logger
 )
 
+func initLogger(debug bool) {
+	log = logsip.New()
+	if debug {
+		log.SetLevel(logsip.DebugLevel)
+	} else {
+		log.SetLevel(logsip.InfoLevel)
+	}
+}
+
 // entry point
 func main() {
 
@@ -22,9 +31,7 @@ func main() {
 	app.Usage = "Podcast downloader"
 	app.Before = func(c *cli.Context) (err error) {
 
-		log = logsip.Default()
-		log.DebugMode = c.Bool("debug")
-
+		initLogger(c.Bool("debug"))
 		// skip rest of function for init
 		if c.Args().First() == "init" {
 			return nil

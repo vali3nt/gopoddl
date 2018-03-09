@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -12,24 +11,11 @@ import (
 	"github.com/cavaliercoder/grab"
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
-	rss "github.com/jteeuwen/go-pkg-rss"
+	rss "github.com/mmcdole/gofeed"
 )
 
-func getRss(podcast *Podcast) (*rss.Feed, error) {
-
-	feed := rss.New(1, true, nil, nil)
-	if err := feed.Fetch(podcast.Url, nil); err != nil {
-		return nil, err
-	}
-	return feed, nil
-}
-
-func getRssName(url string) (string, error) {
-	feed := rss.New(1, true, nil, nil)
-	if err := feed.Fetch(url, nil); err != nil {
-		return "", err
-	}
-	return feed.Channels[0].Title, nil
+func getFeed(url string) (*rss.Feed, error) {
+	return rss.NewParser().ParseURL(url)
 }
 
 func syncPodcasts(startDate time.Time, nameOrID string, count int, chekMode bool) error {
@@ -55,19 +41,14 @@ func syncPodcasts(startDate time.Time, nameOrID string, count int, chekMode bool
 		filter.StartDate = startDate
 
 		// download rss
-		feed, err := getRss(podcast)
+		feed, err := getFeed(podcast.Url)
 		if err != nil {
 			printPodcastInfo(podcast, podcastList, n+1, err)
 			continue
 		}
 
-		if len(feed.Channels) == 0 {
-			log.Warnf(fmt.Sprintf("No channels in %s", podcast.Name))
-			continue
-		}
-
 		// filter
-		podcastList, err = filter.FilterItems(feed.Channels[0])
+		podcastList, err = filter.FilterItems(feed)
 		if err != nil {
 			printPodcastInfo(podcast, podcastList, n+1, err)
 			continue
@@ -129,20 +110,14 @@ func printPodcastInfo(podcast *Podcast, podcastList []*DownloadItem, index int, 
 func createRequests(podcast *Podcast, podcastList []*DownloadItem) []*grab.Request {
 	reqs := []*grab.Request{}
 	for _, entry := range podcastList {
-		// create dir for each entry, path is set in filter
-		// according to rules in configuration
-		entryDownloadPath := filepath.Join(podcast.DownloadPath, entry.Dir)
-		if !fileExists(entryDownloadPath) {
-			if err := os.MkdirAll(entryDownloadPath, 0777); err != nil {
-				log.Fatal(err)
-				continue
-			}
+		entryDir := filepath.Join(podcast.DownloadPath, entry.Dir)
+		entryPath := filepath.Join(entryDir, entry.Filename)
+		req, err := grab.NewRequest(entryPath, entry.URL)
+		if err != nil {
+			log.Errorf("NewRequest failed with %s\n", err)
+			continue
 		}
-
-		req, _ := grab.NewRequest(entry.Url)
-		req.Filename = filepath.Join(entryDownloadPath, entry.Filename)
-		req.Size = uint64(entry.Size)
-		req.RemoveOnError = true
+		req.Size = entry.Size
 		reqs = append(reqs, req)
 	}
 	return reqs
@@ -178,7 +153,7 @@ func startDownload(downloadReqs [][]*grab.Request) {
 				curPosition++
 
 				// start downloading
-				resp := <-client.DoAsync(req)
+				resp := client.Do(req)
 
 				// send results to monitoring channel
 				statusQueue <- &downloadStatus{
@@ -225,7 +200,7 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) {
 			for i, resp := range responses {
 				if resp != nil && resp.Response.IsComplete() {
 
-					if resp.Response.Error != nil {
+					if resp.Response.Err() != nil {
 						showProgressError(ui, resp)
 					} else {
 						showProgressDone(ui, resp)
@@ -249,14 +224,14 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) {
 	ui.Stop()
 }
 
-func bytesToMb(bytesCount uint64) float64 {
+func bytesToMb(bytesCount int64) float64 {
 	return float64(bytesCount) / float64(1024*1024)
 }
 
 func showProgressError(ui *uilive.Writer, status *downloadStatus) {
 	fmt.Fprintf(ui.Bypass(), "Error downloading %s: %v\n",
 		status.Response.Request.URL(),
-		status.Response.Error)
+		status.Response.Err())
 }
 
 func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
@@ -264,7 +239,7 @@ func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
 		"Finished %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
 		status.Response.Filename,
 		status.Current, status.Total,
-		bytesToMb(status.Response.BytesTransferred()),
+		bytesToMb(status.Response.BytesComplete()),
 		bytesToMb(status.Response.Size),
 		int(100*status.Response.Progress()))
 }
@@ -273,7 +248,7 @@ func showProgressProc(ui *uilive.Writer, status *downloadStatus) {
 	fmt.Fprintf(ui, "Downloading %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
 		status.Response.Filename,
 		status.Current, status.Total,
-		bytesToMb(status.Response.BytesTransferred()),
+		bytesToMb(status.Response.BytesComplete()),
 		bytesToMb(status.Response.Size),
 		int(100*status.Response.Progress()))
 

@@ -95,12 +95,12 @@ func cmdAdd() cli.Command {
 		podcastName := c.Args().Get(1)
 
 		if podcastName == "" {
-			var err error
-			podcastName, err = getRssName(url)
+			feed, err := getFeed(url)
 			if err != nil {
-				log.Fatal("Failed to get podacast name from url: %s, Error: %s", url, err.Error())
+				log.Fatalf("Failed to get podacast name from url: %s, Error: %s", url, err.Error())
 				return cli.NewExitError("", 1)
 			}
+			podcastName = feed.Title
 		}
 
 		if err := cfg.AddPodcast(podcastName, url); err != nil {

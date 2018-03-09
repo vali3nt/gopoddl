@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	rss "github.com/jteeuwen/go-pkg-rss"
+	rss "github.com/mmcdole/gofeed"
 )
 
 type Filter struct {
@@ -23,24 +23,23 @@ type DownloadItem struct {
 	Title     string // will used for log output
 	Dir       string // seperate dir, can be empty
 	Filename  string // file name from url
-	Url       string // url to downaload
+	URL       string // url to downaload
 	Size      int64
 	ItemTitle string
 }
 
 // FilterItems filters items from podcast RSS, returns all passed DownloadItems
-func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
+func (f *Filter) FilterItems(rssChannel *rss.Feed) ([]*DownloadItem, error) {
 	itemsToDownload := []*DownloadItem{}
 	items := rssChannel.Items
 	// filter by date
 	for _, item := range items {
-		itemDate, _ := item.ParsedPubDate()
 		if !f.StartDate.IsZero() {
-			if itemDate.Before(f.StartDate) {
+			if item.PublishedParsed.Before(f.StartDate) {
 				log.Debug("filter:skipped by StartDate: ", item.Title)
 				continue
 			}
-		} else if itemDate.Before(f.LastSynced) {
+		} else if item.PublishedParsed.Before(f.LastSynced) {
 			log.Debug("filter:skipped by LastSynced: ", item.Title)
 			continue
 		}
@@ -65,7 +64,7 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 				data := map[string]string{
 					"ItemTitle":       item.Title,
 					"ItemDescription": item.Description,
-					"ItemUrl":         enclosure.Url,
+					"ItemUrl":         enclosure.URL,
 				}
 				if ok, err := EvalFilter(f.Filter, data); err != nil {
 					log.Fatal("filter:error:", err)
@@ -82,13 +81,12 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 			// {{Title}}, {{Name}}, {{ItemPubDate}}, {{ItemTitle}}, {{CurrentDate}}
 			sepPath := ""
 			if f.SeperatePath != "" {
-				d, _ := item.ParsedPubDate()
 				data := map[string]string{
 					"Title":       rssChannel.Title,
 					"Name":        f.PodcastName,
 					"ItemTitle":   item.Title,
 					"CurrentDate": time.Now().Format(f.DateFormat),
-					"ItemPubDate": d.Format(f.DateFormat),
+					"ItemPubDate": item.PublishedParsed.Format(f.DateFormat),
 				}
 				sepPath = EvalFormat(f.SeperatePath, data)
 			}
@@ -97,11 +95,11 @@ func (f *Filter) FilterItems(rssChannel *rss.Channel) ([]*DownloadItem, error) {
 			log.Debug("filter:added to download list:", item.Title)
 			itemsToDownload = append(itemsToDownload,
 				&DownloadItem{
-					Filename:  buildFileName(enclosure.Url),
+					Filename:  buildFileName(enclosure.URL),
 					Dir:       sepPath,
-					Url:       enclosure.Url,
+					URL:       enclosure.URL,
 					Title:     rssChannel.Title,
-					Size:      enclosure.Length,
+					Size:      parseStrToInt(enclosure.Length),
 					ItemTitle: item.Title,
 				})
 		}
