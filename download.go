@@ -21,7 +21,7 @@ func getFeed(url string) (*rss.Feed, error) {
 	return rss.NewParser().ParseURL(url)
 }
 
-func syncPodcasts(startDate time.Time, nameOrID string, count int, chekMode bool) error {
+func syncPodcasts(startDate time.Time, nameOrID string, count int, retryAttempts uint, chekMode bool) error {
 	allReqs := [][]*grab.Request{}
 	podcasts := []*Podcast{}
 
@@ -75,7 +75,7 @@ func syncPodcasts(startDate time.Time, nameOrID string, count int, chekMode bool
 
 	if !chekMode {
 		failedReqs := startDownload(allReqs)
-		downloadWithRetry(failedReqs)
+		downloadWithRetry(failedReqs, retryAttempts)
 
 		for _, podcast := range podcasts {
 			podcast.LastSynced = time.Now()
@@ -239,7 +239,7 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) (int, []
 	return successCount, failedRequests
 }
 
-func downloadWithRetry(reqs []*grab.Request) {
+func downloadWithRetry(reqs []*grab.Request, retryAttempts uint) {
 	retryReqs := [][]*grab.Request{
 		reqs,
 	}
@@ -251,7 +251,7 @@ func downloadWithRetry(reqs []*grab.Request) {
 			}
 			return nil
 		},
-		retry.Attempts(3),
+		retry.Attempts(retryAttempts),
 		retry.OnRetry(func(n uint, err error) {
 			fmt.Printf("Retry #%d: %s\n", n, err)
 		}),

@@ -194,7 +194,7 @@ func cmdCheck() cli.Command {
 
 		podcastCount := c.Int("count")
 		nameOrID := c.String("name")
-		if err = syncPodcasts(date, nameOrID, podcastCount, true); err != nil {
+		if err = syncPodcasts(date, nameOrID, podcastCount, 0, true); err != nil {
 			return cli.NewExitError(err.Error(), 1)
 		}
 
@@ -205,7 +205,6 @@ func cmdCheck() cli.Command {
 }
 
 // 'sync' - command
-// TODO: add to sync only one podcast
 func cmdSync() cli.Command {
 	cmd := cli.Command{}
 	cmd.Name = "sync"
@@ -227,6 +226,11 @@ func cmdSync() cli.Command {
 			Value: "",
 			Usage: "Name or Id of podacast to sync",
 		},
+		cli.StringFlag{
+			Name:  "retry, r",
+			Value: "",
+			Usage: "Number of attempts to retry on failed download",
+		},
 	}
 	cmd.Action = func(c *cli.Context) error {
 		var date time.Time
@@ -240,9 +244,10 @@ func cmdSync() cli.Command {
 
 		podcastCount := c.Int("count")
 		nameOrID := c.String("name")
+		retryAttempts := c.Uint("retry-attempts")
 
 		log.Infof("Started at %s", time.Now())
-		if err = syncPodcasts(date, nameOrID, podcastCount, false); err != nil {
+		if err = syncPodcasts(date, nameOrID, podcastCount, retryAttempts, false); err != nil {
 			return cli.NewExitError(err.Error(), 1)
 		}
 		log.Infof("Finished at %s", time.Now())
