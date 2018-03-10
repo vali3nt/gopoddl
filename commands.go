@@ -72,7 +72,7 @@ func cmdList() cli.Command {
 			}
 			num := color.MagentaString("[" + strconv.Itoa(n+1) + "] ")
 			log.Printf("%s %s %s", num, podcast.Name, isDisabledStr)
-			log.Printf("\t* Url             : %s", podcast.Url)
+			log.Printf("\t* Url             : %s", podcast.URL)
 			log.Printf("\t* Last synced     : %s", lastUpdated)
 		}
 		return nil
@@ -107,9 +107,8 @@ func cmdAdd() cli.Command {
 			if err == ErrPodacastAlreadyExist {
 				log.Warnf("Podcast <%s> exists already", podcastName)
 				return cli.NewExitError("", 1)
-			} else {
-				return cli.NewExitError(err.Error(), 1)
 			}
+			return cli.NewExitError(err.Error(), 1)
 		}
 		log.Printf("* Podcast [%s] added", podcastName)
 		return nil

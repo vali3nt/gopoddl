@@ -62,7 +62,7 @@ var (
 // Podcast - mandatory settings, set per podcast
 type Podcast struct {
 	Name            string    `ini:"-"`
-	Url             string    `ini:"url"`
+	URL             string    `ini:"url"`
 	LastSynced      time.Time `ini:"last-synced"`
 	PodcastSettings `ini:"Podcast"`
 }
@@ -212,7 +212,7 @@ func (c *Config) GetPodcastByIndex(index int) (*Podcast, error) {
 func (c *Config) GetAllPodcasts() []*Podcast {
 	podcasts := []*Podcast{}
 	for _, sectionName := range c.cfg.SectionStrings() {
-		if sectionName == ini.DEFAULT_SECTION {
+		if sectionName == ini.DEFAULT_SECTION || sectionName == "default" {
 			continue
 		}
 		p, err := c.GetPodcastByName(sectionName)

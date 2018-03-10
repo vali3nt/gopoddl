@@ -14,6 +14,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/avast/retry-go"
+  packages = ["."]
+  revision = "5e4735226698930c2549d57fdbdae92b83a58c4e"
+  version = "1.0.0"
+
+[[projects]]
   name = "github.com/cavaliercoder/grab"
   packages = ["."]
   revision = "3b6830dae49bc01e25b4676dae3a2a06c1b1485e"
@@ -112,6 +118,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "fe5bc99e6a20e022d2a1b04c63ec1ff62dfbf8b5c1b01bdb85c1c80cbdd731b9"
+  inputs-digest = "1dc6aa900118900b50fee40c6a84df3f4582fe838424633d545a33c4c38405b7"
   solver-name = "gps-cdcl"
   solver-version = 1
