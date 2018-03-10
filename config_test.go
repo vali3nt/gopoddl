@@ -19,7 +19,7 @@ filter        =
 mtype         = audio
 
 [Radio Record]
-url         = http://localgost/rss.xml
+url         = http://localhost/rss.xml
 filter      = 'Хрусталев' in {{ItemTitle}}
 last-synced = 2016-08-11T14:21:57+03:00
 mtype         = video
@@ -48,7 +48,7 @@ mtype         = video
 		t.Error("Failed to find podcast by name", err)
 	}
 
-	assert.Equal(t, "http://localgost/rss.xml", p.Url, "Pocast.Url is incorrect")
+	assert.Equal(t, "http://localhost/rss.xml", p.URL, "Pocast.Url is incorrect")
 	assert.Equal(t, "{{CurrentDate}}", p.SeparateDir, "Pocast.SeparateDir is incorrect")
 	assert.Equal(t, false, p.Disabled, "Pocast.Disabled is incorrect")
 	assert.Equal(t, "2006Jan", p.DateFormat, "Pocast.DateFormat  is incorrect")

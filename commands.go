@@ -134,9 +134,8 @@ func cmdRemove() cli.Command {
 			if err == ErrPodcastWasNotFound {
 				log.Warnf("Name or ID <%s> was not found in store. do nothing", nameOrID)
 				return cli.NewExitError("", 1)
-			} else {
-				return cli.NewExitError(err.Error(), 1)
 			}
+			return cli.NewExitError(err.Error(), 1)
 		}
 		cfg.RemovePodcast(p.Name)
 		log.Printf("* [%s] removed", nameOrID)

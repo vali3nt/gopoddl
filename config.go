@@ -54,9 +54,10 @@ const (
 )
 
 var (
-	ErrPodacastAlreadyExist = errors.New("Podcast exists in store already")
-	ErrPodcastWasNotFound   = errors.New("Podcast does not exist in store")
-	//errIntenalNowAllowd     = errors.New("not allowed to work with DEFAULT section")
+	// ErrPodacastAlreadyExist - for already exsting podcasts
+	ErrPodacastAlreadyExist = errors.New("Podcast exists in config already")
+	// ErrPodcastWasNotFound - if podacsts was not found in config
+	ErrPodcastWasNotFound = errors.New("Podcast does not exist in config")
 )
 
 // Podcast - mandatory settings, set per podcast
@@ -96,6 +97,7 @@ func CreateDefaultConfig(filePath string) error {
 	return cfg.SaveTo(filePath)
 }
 
+// Config holds init-config and path to config file
 type Config struct {
 	configPath string
 	cfg        *ini.File
