@@ -14,12 +14,6 @@
   version = "v1.0.0"
 
 [[projects]]
-  name = "github.com/avast/retry-go"
-  packages = ["."]
-  revision = "5e4735226698930c2549d57fdbdae92b83a58c4e"
-  version = "1.0.0"
-
-[[projects]]
   name = "github.com/cavaliercoder/grab"
   packages = ["."]
   revision = "3b6830dae49bc01e25b4676dae3a2a06c1b1485e"
@@ -52,7 +46,10 @@
 [[projects]]
   branch = "master"
   name = "github.com/iamthemuffinman/logsip"
-  packages = [".","isatty"]
+  packages = [
+    ".",
+    "isatty"
+  ]
   revision = "85f217002f0d42c9b47493109d9cb4814fb16527"
 
 [[projects]]
@@ -69,7 +66,13 @@
 
 [[projects]]
   name = "github.com/mmcdole/gofeed"
-  packages = [".","atom","extensions","internal/shared","rss"]
+  packages = [
+    ".",
+    "atom",
+    "extensions",
+    "internal/shared",
+    "rss"
+  ]
   revision = "42010a154d249f5f753dfe03a6390b59671e403e"
   version = "v1.0.0-beta2"
 
@@ -94,7 +97,11 @@
 [[projects]]
   branch = "master"
   name = "golang.org/x/net"
-  packages = ["html","html/atom","html/charset"]
+  packages = [
+    "html",
+    "html/atom",
+    "html/charset"
+  ]
   revision = "d0aafc73d5cdc42264b0af071c261abac580695e"
 
 [[projects]]
@@ -105,7 +112,25 @@
 
 [[projects]]
   name = "golang.org/x/text"
-  packages = ["encoding","encoding/charmap","encoding/htmlindex","encoding/internal","encoding/internal/identifier","encoding/japanese","encoding/korean","encoding/simplifiedchinese","encoding/traditionalchinese","encoding/unicode","internal/gen","internal/tag","internal/utf8internal","language","runes","transform","unicode/cldr"]
+  packages = [
+    "encoding",
+    "encoding/charmap",
+    "encoding/htmlindex",
+    "encoding/internal",
+    "encoding/internal/identifier",
+    "encoding/japanese",
+    "encoding/korean",
+    "encoding/simplifiedchinese",
+    "encoding/traditionalchinese",
+    "encoding/unicode",
+    "internal/gen",
+    "internal/tag",
+    "internal/utf8internal",
+    "language",
+    "runes",
+    "transform",
+    "unicode/cldr"
+  ]
   revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
   version = "v0.3.0"
 
@@ -118,6 +143,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1dc6aa900118900b50fee40c6a84df3f4582fe838424633d545a33c4c38405b7"
+  inputs-digest = "fe5bc99e6a20e022d2a1b04c63ec1ff62dfbf8b5c1b01bdb85c1c80cbdd731b9"
   solver-name = "gps-cdcl"
   solver-version = 1

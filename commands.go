@@ -194,7 +194,7 @@ func cmdCheck() cli.Command {
 
 		podcastCount := c.Int("count")
 		nameOrID := c.String("name")
-		if err = syncPodcasts(date, nameOrID, podcastCount, 0, true); err != nil {
+		if err = syncPodcasts(date, nameOrID, podcastCount, true, true); err != nil {
 			return cli.NewExitError(err.Error(), 1)
 		}
 
@@ -226,10 +226,9 @@ func cmdSync() cli.Command {
 			Value: "",
 			Usage: "Name or Id of podacast to sync",
 		},
-		cli.StringFlag{
-			Name:  "retry, r",
-			Value: "",
-			Usage: "Number of attempts to retry on failed download",
+		cli.BoolFlag{
+			Name:  "no-update-date",
+			Usage: "Do not update last sync date after downloading",
 		},
 	}
 	cmd.Action = func(c *cli.Context) error {
@@ -244,10 +243,10 @@ func cmdSync() cli.Command {
 
 		podcastCount := c.Int("count")
 		nameOrID := c.String("name")
-		retryAttempts := c.Uint("retry-attempts")
+		noUpdate := c.Bool("no-update-date")
 
 		log.Infof("Started at %s", time.Now())
-		if err = syncPodcasts(date, nameOrID, podcastCount, retryAttempts, false); err != nil {
+		if err = syncPodcasts(date, nameOrID, podcastCount, false, noUpdate); err != nil {
 			return cli.NewExitError(err.Error(), 1)
 		}
 		log.Infof("Finished at %s", time.Now())

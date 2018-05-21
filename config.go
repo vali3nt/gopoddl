@@ -35,6 +35,7 @@ const (
 #                            Format : 20060102, 2006 - year, 01 - month, 02 - day
 #                            Details in 'const' https://golang.org/src/pkg/time/format.go
 #    mtype               mediatypes to download audio,video,...
+#    retry               number of attempts to retry in case of failure
 #    filter              filter for podcasts
 #                        if condition matched, podcast item will be downloaded
 #                        following tokens can be used:
@@ -76,6 +77,7 @@ type PodcastSettings struct {
 	DateFormat   string `ini:"date-format"`
 	Filter       string `ini:"filter"`
 	Mtype        string `ini:"mtype"`
+	Retry        int    `ini:"retry"`
 }
 
 // CreateDefaultConfig creates inital configurtion and save it to file
@@ -91,6 +93,7 @@ func CreateDefaultConfig(filePath string) error {
 	defaultSettings.DateFormat = "20060102"
 	defaultSettings.Mtype = "audio"
 	defaultSettings.Filter = ""
+	defaultSettings.Retry = 3
 	if err := defaultSection.ReflectFrom(defaultSettings); err != nil {
 		return err
 	}

@@ -17,6 +17,7 @@ disabled      = false
 date-format   = 2006Jan
 filter        =
 mtype         = audio
+retry         = 4
 
 [Radio Record]
 url         = http://localhost/rss.xml
@@ -54,5 +55,6 @@ mtype         = video
 	assert.Equal(t, "2006Jan", p.DateFormat, "Pocast.DateFormat  is incorrect")
 	assert.Equal(t, "video", p.Mtype, "Pocast.Mtype  is incorrect")
 	assert.Equal(t, "'Хрусталев' in {{ItemTitle}}", p.Filter, "Podcast.Filter is incorrect")
+	assert.Equal(t, 4, p.Retry, "retry count mismatch")
 
 }

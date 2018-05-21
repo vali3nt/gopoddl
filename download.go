@@ -3,14 +3,12 @@ package main
 // github.com/cheggaaa/pb
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	retry "github.com/avast/retry-go"
 	"github.com/cavaliercoder/grab"
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
@@ -21,9 +19,10 @@ func getFeed(url string) (*rss.Feed, error) {
 	return rss.NewParser().ParseURL(url)
 }
 
-func syncPodcasts(startDate time.Time, nameOrID string, count int, retryAttempts uint, chekMode bool) error {
+func syncPodcasts(startDate time.Time, nameOrID string, count int, chekMode bool, noUpdate bool) error {
 	allReqs := [][]*grab.Request{}
 	podcasts := []*Podcast{}
+	retry := 0
 
 	if nameOrID == "" {
 		podcasts = cfg.GetAllPodcasts()
@@ -71,16 +70,21 @@ func syncPodcasts(startDate time.Time, nameOrID string, count int, retryAttempts
 		// create download requests
 		allReqs = append(allReqs, createRequests(podcast, podcastList))
 
+		// retry count
+		if podcast.Retry > retry {
+			retry = podcast.Retry
+		}
 	}
 
 	if !chekMode {
-		failedReqs := startDownload(allReqs)
-		downloadWithRetry(failedReqs, retryAttempts)
-
-		for _, podcast := range podcasts {
-			podcast.LastSynced = time.Now()
-			if err := cfg.UpdatePodcast(podcast); err != nil {
-				return err
+		total := startDownload(allReqs, retry)
+		log.Infof("%d files downloaded.\n", total)
+		if !noUpdate {
+			for _, podcast := range podcasts {
+				podcast.LastSynced = time.Now()
+				if err := cfg.UpdatePodcast(podcast); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -127,7 +131,7 @@ func createRequests(podcast *Podcast, podcastList []*DownloadItem) []*grab.Reque
 	return reqs
 }
 
-func startDownload(downloadReqs [][]*grab.Request) []*grab.Request {
+func startDownload(downloadReqs [][]*grab.Request, retryNum int) int {
 	requestCount := len(downloadReqs)
 	statusQueue := make(chan *downloadStatus, requestCount)
 	doneQueue := make(chan bool, requestCount)
@@ -176,11 +180,18 @@ func startDownload(downloadReqs [][]*grab.Request) []*grab.Request {
 		}(podcastReq)
 	}
 	successCount, failedRequests := checkDownloadProgress(statusQueue, totalFiles)
-	log.Infof("%d total file (%d success, %d failed).\n",
-		totalFiles,
-		successCount,
-		len(failedRequests))
-	return failedRequests
+	if len(failedRequests) > 0 && retryNum > 0 {
+		log.Warnf("%d requests failed, retrying (remaining attempts %d)\n", len(failedRequests), retryNum)
+		successCount += startDownload([][]*grab.Request{failedRequests}, retryNum-1)
+	}
+
+	if retryNum == 0 {
+		log.Infof("%d total file (%d success, %d failed).\n",
+			totalFiles,
+			successCount,
+			len(failedRequests))
+	}
+	return successCount
 }
 
 type downloadStatus struct {
@@ -195,7 +206,6 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) (int, []
 	ui := uilive.New()
 
 	completed := 0
-	successCount := 0
 	responses := make([]*downloadStatus, 0)
 	failedRequests := make([]*grab.Request, 0)
 
@@ -217,7 +227,6 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) (int, []
 						failedRequests = append(failedRequests, resp.Request)
 					} else {
 						showProgressDone(ui, resp)
-						successCount++
 					}
 
 					responses[i] = nil
@@ -236,26 +245,7 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) (int, []
 
 	timer.Stop()
 	ui.Stop()
-	return successCount, failedRequests
-}
-
-func downloadWithRetry(reqs []*grab.Request, retryAttempts uint) {
-	retryReqs := [][]*grab.Request{
-		reqs,
-	}
-	retry.Do(
-		func() error {
-			resp := startDownload(retryReqs)
-			if len(resp) > 0 {
-				return errors.New("Some podcasts download finished with error")
-			}
-			return nil
-		},
-		retry.Attempts(retryAttempts),
-		retry.OnRetry(func(n uint, err error) {
-			fmt.Printf("Retry #%d: %s\n", n, err)
-		}),
-	)
+	return completed - len(failedRequests), failedRequests
 }
 
 func toProgress(completed int64, size int64) int64 {
@@ -269,29 +259,38 @@ func bytesToMb(bytesCount int64) float64 {
 	return math.Abs(float64(bytesCount)) / float64(1024*1024)
 }
 
+var (
+	errPrefix        = color.RedString("ERROR     ")
+	donePrefix       = color.GreenString("DONE      ")
+	inprogressPrefix = color.MagentaString("DOWNLOAD  ")
+)
+
 func showProgressError(ui *uilive.Writer, status *downloadStatus) {
-	fmt.Fprintf(ui.Bypass(), "Error downloading %s: %v\n",
+	fmt.Fprintf(ui.Bypass(), "%s: %s: %v\n",
+		errPrefix,
 		status.Response.Request.URL(),
 		status.Response.Err())
 }
 
 func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
+	// spaces to owerwrite pogress line
 	fmt.Fprintf(ui.Bypass(),
-		"Finished %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
+		"%s: %s [%d/%d] %0.2f / %0.2f Mb (%d%%)   \n",
+		donePrefix,
 		status.Response.Filename,
 		status.Current, status.Total,
 		bytesToMb(status.Response.BytesComplete()),
-		bytesToMb(status.Request.Size),
-		toProgress(status.Response.BytesComplete(), status.Request.Size),
-	)
+		bytesToMb(status.Response.Size),
+		int(100*status.Response.Progress()))
 }
 
 func showProgressProc(ui *uilive.Writer, status *downloadStatus) {
-	fmt.Fprintf(ui, "Downloading %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
+	fmt.Fprintf(ui, "%s: %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
+		inprogressPrefix,
 		status.Response.Filename,
 		status.Current, status.Total,
 		bytesToMb(status.Response.BytesComplete()),
-		bytesToMb(status.Request.Size),
-		toProgress(status.Response.BytesComplete(), status.Request.Size),
-	)
+		bytesToMb(status.Response.Size),
+		int(100*status.Response.Progress()))
+
 }

@@ -33,7 +33,8 @@ func main() {
 
 		initLogger(c.Bool("debug"))
 		// skip rest of function for init
-		if c.Args().First() == "init" {
+		switch c.Args().First() {
+		case "init", "i", "help", "h":
 			return nil
 		}
 
