@@ -249,13 +249,16 @@ func checkDownloadProgress(respch <-chan *downloadStatus, reqCount int) (int, []
 }
 
 func toProgress(completed int64, size int64) int64 {
-	if size == 0 {
+	if size <= 0 || completed <= 0 {
 		return 0
 	}
 	return int64(float64(completed) / float64(size) * 100)
 }
 
 func bytesToMb(bytesCount int64) float64 {
+	if bytesCount <= 0 {
+		return 0
+	}
 	return math.Abs(float64(bytesCount)) / float64(1024*1024)
 }
 
@@ -265,6 +268,13 @@ var (
 	inprogressPrefix = color.MagentaString("DOWNLOAD  ")
 )
 
+func calcProgress(bytesComplete int64, size int64) int {
+	if size == 0 {
+		return 0
+	}
+	return int(100 * (float64(bytesComplete) / float64(size)))
+}
+
 func showProgressError(ui *uilive.Writer, status *downloadStatus) {
 	fmt.Fprintf(ui.Bypass(), "%s: %s: %v\n",
 		errPrefix,
@@ -273,6 +283,10 @@ func showProgressError(ui *uilive.Writer, status *downloadStatus) {
 }
 
 func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
+	var actualSize = status.Response.Size
+	if actualSize <= 0 {
+		actualSize = status.Request.Size
+	}
 	// spaces to owerwrite pogress line
 	fmt.Fprintf(ui.Bypass(),
 		"%s: %s [%d/%d] %0.2f / %0.2f Mb (%d%%)   \n",
@@ -280,17 +294,20 @@ func showProgressDone(ui *uilive.Writer, status *downloadStatus) {
 		status.Response.Filename,
 		status.Current, status.Total,
 		bytesToMb(status.Response.BytesComplete()),
-		bytesToMb(status.Response.Size),
-		int(100*status.Response.Progress()))
+		bytesToMb(actualSize),
+		calcProgress(status.Response.BytesComplete(), actualSize))
 }
 
 func showProgressProc(ui *uilive.Writer, status *downloadStatus) {
+	var actualSize = status.Response.Size
+	if actualSize <= 0 {
+		actualSize = status.Request.Size
+	}
 	fmt.Fprintf(ui, "%s: %s [%d/%d] %0.2f / %0.2f Mb (%d%%)\n",
 		inprogressPrefix,
 		status.Response.Filename,
 		status.Current, status.Total,
 		bytesToMb(status.Response.BytesComplete()),
-		bytesToMb(status.Response.Size),
-		int(100*status.Response.Progress()))
-
+		bytesToMb(actualSize),
+		calcProgress(status.Response.BytesComplete(), actualSize))
 }
