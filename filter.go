@@ -128,9 +128,19 @@ func MakeFilter(podcast *Podcast) *Filter {
 	}
 }
 
+// strip query params like : fname?podcast => fname
+func stripQueryString(inputUrl string) string {
+    u, err := url.Parse(inputUrl)
+    if err != nil {
+        panic(err)
+    }
+    u.RawQuery = ""
+    return u.String()
+}
+
 // clean up file name
 func buildFileName(uri string) string {
-	filename := uri[strings.LastIndex(uri, "/"):len(uri)]
-	escaped, _ := url.QueryUnescape(filename)
+	fname := uri[strings.LastIndex(uri, "/"):len(uri)] // cut fname from iru
+	escaped, _ := url.QueryUnescape(stripQueryString(fname)) // clean up uri
 	return escaped
 }
